@@ -1,11 +1,14 @@
 # dbt
 
-The dbt project for Athena transforms lives here.
+dbt projects and shared model scaffolding live here.
 
-The expected model flow is:
-- source and staging models over the raw standardized zone
-- intermediate models for business logic
-- mart models for UI and analytics consumption
+The initial expectation is:
+- one shared dbt runtime pattern
+- workflow-specific project configuration where isolation is useful
+- staging, intermediate, and mart layers over curated workflow data
+
+The first pass should treat workflow datasets as isolated sources rather than
+one giant shared lake.
 
 Direct dbt dependencies should be managed through:
 - `requirements.in`

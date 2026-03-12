@@ -1,3 +1,3 @@
 # intermediate
 
-Intermediate models for pipeline business logic live here.
+Intermediate models for workflow-level business logic and normalization live here.
