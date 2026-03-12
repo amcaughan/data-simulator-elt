@@ -1,0 +1,2 @@
+skip-check:
+  - CKV_GHA_7 # workflow_dispatch input is intentional for optional deep gitleaks scans
