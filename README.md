@@ -12,6 +12,7 @@ This repository manages:
 - shared ELT control-plane resources
 - reusable workflow patterns
 - isolated storage and execution boundaries per workflow
+- source-ingest landing runtimes
 - dbt-based transformation layers over processed data
 
 ## Platform shape
@@ -27,6 +28,11 @@ Each workflow should be understandable in isolation:
 - its own IAM surface
 - its own schedules or stream plumbing
 - its own transformation target area
+
+The intended data movement is:
+- source ingest writes exact payloads into `landing`
+- later standardization jobs normalize and move data into `processed`
+- dbt builds consumer-facing models from `processed`
 
 The shared core is expected to own:
 - ECS cluster

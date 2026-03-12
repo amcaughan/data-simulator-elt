@@ -1,1 +1,1 @@
-# Add Python dependencies for ingestion and standardization jobs here.
+boto3
