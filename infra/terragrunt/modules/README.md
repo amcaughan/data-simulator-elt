@@ -6,7 +6,7 @@ The current split is:
 - `elt-core`
   shared control-plane resources for one environment
 - `isolated-storage`
-  per-workflow landing, raw, and analytics storage
+  per-workflow landing, processed, and analytics storage
 - `scheduled-ingest-job`
   reusable runtime pattern for scheduled API ingestion
 - `dbt-job`

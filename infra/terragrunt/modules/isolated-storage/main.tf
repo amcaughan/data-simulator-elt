@@ -5,7 +5,7 @@ locals {
   project_slug = replace(var.project_name, "_", "-")
   bucket_names = {
     landing   = "${local.project_slug}-${var.environment}-${var.workflow_name}-landing-${data.aws_caller_identity.current.account_id}-${data.aws_region.current.name}"
-    raw       = "${local.project_slug}-${var.environment}-${var.workflow_name}-raw-${data.aws_caller_identity.current.account_id}-${data.aws_region.current.name}"
+    processed = "${local.project_slug}-${var.environment}-${var.workflow_name}-processed-${data.aws_caller_identity.current.account_id}-${data.aws_region.current.name}"
     analytics = "${local.project_slug}-${var.environment}-${var.workflow_name}-analytics-${data.aws_caller_identity.current.account_id}-${data.aws_region.current.name}"
   }
 }

@@ -1,3 +1,3 @@
 # staging
 
-Staging models over isolated workflow raw tables live here.
+Staging models over isolated workflow processed tables live here.

@@ -50,8 +50,8 @@ data "aws_iam_policy_document" "task_policy" {
     resources = [
       "arn:aws:s3:::${var.landing_bucket_name}",
       "arn:aws:s3:::${var.landing_bucket_name}/*",
-      "arn:aws:s3:::${var.raw_bucket_name}",
-      "arn:aws:s3:::${var.raw_bucket_name}/*",
+      "arn:aws:s3:::${var.processed_bucket_name}",
+      "arn:aws:s3:::${var.processed_bucket_name}/*",
     ]
   }
 
@@ -109,8 +109,8 @@ resource "aws_ecs_task_definition" "this" {
           value = var.landing_bucket_name
         },
         {
-          name  = "RAW_BUCKET_NAME"
-          value = var.raw_bucket_name
+          name  = "PROCESSED_BUCKET_NAME"
+          value = var.processed_bucket_name
         },
         {
           name  = "AWS_REGION"

@@ -1,7 +1,7 @@
 locals {
   project_slug        = replace(var.project_name, "_", "-")
   stream_name         = "${local.project_slug}-${var.environment}-${var.workflow_name}"
-  firehose_name       = "${local.project_slug}-${var.environment}-${var.workflow_name}-raw"
+  firehose_name       = "${local.project_slug}-${var.environment}-${var.workflow_name}-processed"
   firehose_log_group  = "/aws/kinesisfirehose/${local.firehose_name}"
 }
 
@@ -80,8 +80,8 @@ data "aws_iam_policy_document" "firehose" {
     ]
 
     resources = [
-      "arn:aws:s3:::${module.storage.raw_bucket_name}",
-      "arn:aws:s3:::${module.storage.raw_bucket_name}/*",
+      "arn:aws:s3:::${module.storage.processed_bucket_name}",
+      "arn:aws:s3:::${module.storage.processed_bucket_name}/*",
     ]
   }
 
@@ -112,7 +112,7 @@ resource "aws_kinesis_firehose_delivery_stream" "this" {
 
   extended_s3_configuration {
     role_arn           = aws_iam_role.firehose.arn
-    bucket_arn         = "arn:aws:s3:::${module.storage.raw_bucket_name}"
+    bucket_arn         = "arn:aws:s3:::${module.storage.processed_bucket_name}"
     prefix             = "events/year=!{timestamp:yyyy}/month=!{timestamp:MM}/day=!{timestamp:dd}/"
     error_output_prefix = "errors/type=!{firehose:error-output-type}/year=!{timestamp:yyyy}/month=!{timestamp:MM}/day=!{timestamp:dd}/"
     buffering_interval = 60
@@ -147,7 +147,7 @@ module "dbt" {
   environment                = var.environment
   project_name               = var.project_name
   workflow_name              = var.workflow_name
-  raw_bucket_name            = module.storage.raw_bucket_name
+  processed_bucket_name      = module.storage.processed_bucket_name
   analytics_bucket_name      = module.storage.analytics_bucket_name
   glue_database_name         = var.glue_database_name
   athena_workgroup_name      = var.athena_workgroup_name

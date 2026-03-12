@@ -16,8 +16,8 @@ module "ingest" {
   environment                    = var.environment
   project_name                   = var.project_name
   workflow_name                  = var.workflow_name
-  landing_bucket_name            = module.storage.landing_bucket_name
-  raw_bucket_name                = module.storage.raw_bucket_name
+  landing_bucket_name              = module.storage.landing_bucket_name
+  processed_bucket_name            = module.storage.processed_bucket_name
   simulator_api_url_ssm_param_name = var.simulator_api_url_ssm_param_name
   preset_id                      = var.preset_id
   row_count                      = var.row_count
@@ -30,7 +30,7 @@ module "dbt" {
   environment                = var.environment
   project_name               = var.project_name
   workflow_name              = var.workflow_name
-  raw_bucket_name            = module.storage.raw_bucket_name
+  processed_bucket_name      = module.storage.processed_bucket_name
   analytics_bucket_name      = module.storage.analytics_bucket_name
   glue_database_name         = var.glue_database_name
   athena_workgroup_name      = var.athena_workgroup_name

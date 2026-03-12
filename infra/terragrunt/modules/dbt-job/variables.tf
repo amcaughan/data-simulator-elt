@@ -16,7 +16,7 @@ variable "aws_region" {
   default = "us-east-2"
 }
 
-variable "raw_bucket_name" {
+variable "processed_bucket_name" {
   type = string
 }
 

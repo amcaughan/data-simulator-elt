@@ -20,7 +20,7 @@ variable "landing_bucket_name" {
   type = string
 }
 
-variable "raw_bucket_name" {
+variable "processed_bucket_name" {
   type = string
 }
 

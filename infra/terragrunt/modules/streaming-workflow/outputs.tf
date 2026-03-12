@@ -6,8 +6,8 @@ output "landing_bucket_name" {
   value = module.storage.landing_bucket_name
 }
 
-output "raw_bucket_name" {
-  value = module.storage.raw_bucket_name
+output "processed_bucket_name" {
+  value = module.storage.processed_bucket_name
 }
 
 output "analytics_bucket_name" {
