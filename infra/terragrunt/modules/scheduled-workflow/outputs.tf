@@ -18,12 +18,20 @@ output "source_ingest_job_name" {
   value = module.source_ingest.job_name
 }
 
+output "standardize_job_name" {
+  value = module.standardize.job_name
+}
+
 output "dbt_job_name" {
   value = module.dbt.job_name
 }
 
 output "source_ingest_schedule_name" {
   value = aws_scheduler_schedule.source_ingest.name
+}
+
+output "standardize_schedule_name" {
+  value = aws_scheduler_schedule.standardize.name
 }
 
 output "dbt_schedule_name" {

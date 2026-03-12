@@ -13,24 +13,43 @@ module "storage" {
 module "source_ingest" {
   source = "../source-ingest-job"
 
-  environment                      = var.environment
-  project_name                     = var.project_name
-  workflow_name                    = var.workflow_name
-  landing_bucket_name              = module.storage.landing_bucket_name
-  simulator_api_url_ssm_param_name = var.simulator_api_url_ssm_param_name
-  source_adapter                   = var.source_adapter
-  preset_id                        = var.preset_id
-  row_count                        = var.row_count
-  partition_granularity            = var.partition_granularity
-  mode                             = var.source_ingest_mode
-  logical_date                     = var.source_ingest_logical_date
-  start_at                         = var.source_ingest_start_at
-  end_at                           = var.source_ingest_end_at
-  backfill_days                    = var.source_ingest_backfill_days
-  seed_strategy                    = var.source_ingest_seed_strategy
-  fixed_seed                       = var.source_ingest_fixed_seed
-  request_overrides_json           = var.source_ingest_request_overrides_json
-  container_image                  = var.source_ingest_container_image
+  environment                    = var.environment
+  project_name                   = var.project_name
+  workflow_name                  = var.workflow_name
+  landing_bucket_name            = module.storage.landing_bucket_name
+  source_base_url_ssm_param_name = var.source_base_url_ssm_param_name
+  source_adapter                 = var.source_adapter
+  source_adapter_config_json     = var.source_adapter_config_json
+  aws_region                     = var.aws_region
+  partition_granularity          = var.partition_granularity
+  mode                           = var.source_ingest_mode
+  logical_date                   = var.source_ingest_logical_date
+  start_at                       = var.source_ingest_start_at
+  end_at                         = var.source_ingest_end_at
+  backfill_days                  = var.source_ingest_backfill_days
+  container_image                = var.source_ingest_container_image
+}
+
+module "standardize" {
+  source = "../standardize-job"
+
+  environment                    = var.environment
+  project_name                   = var.project_name
+  workflow_name                  = var.workflow_name
+  landing_bucket_name            = module.storage.landing_bucket_name
+  processed_bucket_name          = module.storage.processed_bucket_name
+  source_adapter                 = var.source_adapter
+  source_adapter_config_json     = var.source_adapter_config_json
+  aws_region                     = var.aws_region
+  landing_partition_granularity  = var.partition_granularity
+  output_partition_granularity   = var.standardize_output_partition_granularity
+  processed_output_prefix        = var.standardize_processed_output_prefix
+  mode                           = var.standardize_mode
+  logical_date                   = var.standardize_logical_date
+  start_at                       = var.standardize_start_at
+  end_at                         = var.standardize_end_at
+  backfill_days                  = var.standardize_backfill_days
+  container_image                = var.standardize_container_image
 }
 
 module "dbt" {
@@ -73,6 +92,7 @@ data "aws_iam_policy_document" "scheduler" {
 
     resources = [
       module.source_ingest.task_definition_arn,
+      module.standardize.task_definition_arn,
       module.dbt.task_definition_arn,
     ]
 
@@ -92,6 +112,8 @@ data "aws_iam_policy_document" "scheduler" {
     resources = [
       module.source_ingest.task_role_arn,
       module.source_ingest.execution_role_arn,
+      module.standardize.task_role_arn,
+      module.standardize.execution_role_arn,
       module.dbt.task_role_arn,
       module.dbt.execution_role_arn,
     ]
@@ -119,6 +141,34 @@ resource "aws_scheduler_schedule" "source_ingest" {
 
     ecs_parameters {
       task_definition_arn = module.source_ingest.task_definition_arn
+      launch_type         = "FARGATE"
+      task_count          = 1
+      platform_version    = "LATEST"
+
+      network_configuration {
+        subnets          = var.network_private_subnet_ids
+        security_groups  = [var.network_security_group_id]
+        assign_public_ip = false
+      }
+    }
+  }
+}
+
+resource "aws_scheduler_schedule" "standardize" {
+  name                = "${local.project_slug}-${var.environment}-${var.workflow_name}-standardize"
+  schedule_expression = var.standardize_schedule_expression
+  state               = "ENABLED"
+
+  flexible_time_window {
+    mode = "OFF"
+  }
+
+  target {
+    arn      = var.ecs_cluster_arn
+    role_arn = aws_iam_role.scheduler.arn
+
+    ecs_parameters {
+      task_definition_arn = module.standardize.task_definition_arn
       launch_type         = "FARGATE"
       task_count          = 1
       platform_version    = "LATEST"

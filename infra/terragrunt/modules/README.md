@@ -9,6 +9,8 @@ The current split is:
   per-workflow landing, processed, and analytics storage
 - `source-ingest-job`
   reusable runtime pattern for source landing ingestion
+- `standardize-job`
+  reusable runtime pattern for landing-to-processed standardization
 - `dbt-job`
   reusable runtime pattern for dbt-based transforms
 - `scheduled-workflow`

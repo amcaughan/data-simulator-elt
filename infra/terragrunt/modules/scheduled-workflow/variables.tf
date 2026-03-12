@@ -7,6 +7,11 @@ variable "project_name" {
   default = "data-simulator-elt"
 }
 
+variable "aws_region" {
+  type    = string
+  default = "us-east-2"
+}
+
 variable "workflow_name" {
   type = string
 }
@@ -31,11 +36,15 @@ variable "athena_workgroup_name" {
   type = string
 }
 
-variable "simulator_api_url_ssm_param_name" {
+variable "source_base_url_ssm_param_name" {
   type = string
 }
 
 variable "ingest_schedule_expression" {
+  type = string
+}
+
+variable "standardize_schedule_expression" {
   type = string
 }
 
@@ -44,17 +53,13 @@ variable "dbt_schedule_expression" {
   default = null
 }
 
-variable "preset_id" {
-  type = string
-}
-
-variable "row_count" {
-  type = number
-}
-
 variable "source_adapter" {
   type    = string
   default = "simulator_api"
+}
+
+variable "source_adapter_config_json" {
+  type = string
 }
 
 variable "partition_granularity" {
@@ -87,23 +92,47 @@ variable "source_ingest_backfill_days" {
   default = null
 }
 
-variable "source_ingest_seed_strategy" {
-  type    = string
-  default = "derived"
+variable "source_ingest_container_image" {
+  type = string
 }
 
-variable "source_ingest_fixed_seed" {
+variable "standardize_container_image" {
+  type = string
+}
+
+variable "standardize_mode" {
+  type    = string
+  default = "single_run"
+}
+
+variable "standardize_logical_date" {
+  type    = string
+  default = null
+}
+
+variable "standardize_start_at" {
+  type    = string
+  default = null
+}
+
+variable "standardize_end_at" {
+  type    = string
+  default = null
+}
+
+variable "standardize_backfill_days" {
   type    = number
   default = null
 }
 
-variable "source_ingest_request_overrides_json" {
+variable "standardize_output_partition_granularity" {
   type    = string
-  default = "{}"
+  default = "day"
 }
 
-variable "source_ingest_container_image" {
-  type = string
+variable "standardize_processed_output_prefix" {
+  type    = string
+  default = "raw"
 }
 
 variable "dbt_container_image" {

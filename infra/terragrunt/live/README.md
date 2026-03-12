@@ -13,7 +13,9 @@ Current workflow families:
 
 Each workflow stack is expected to compose:
 - isolated storage
-- workflow runtime definitions
+- source ingest
+- standardize
+- optionally dbt
 - workflow-specific scheduling or stream resources
 
 These stacks assume the shared network layer eventually provides the private

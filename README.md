@@ -13,6 +13,7 @@ This repository manages:
 - reusable workflow patterns
 - isolated storage and execution boundaries per workflow
 - source-ingest landing runtimes
+- landing-to-processed standardization runtimes
 - dbt-based transformation layers over processed data
 
 ## Platform shape
@@ -31,7 +32,7 @@ Each workflow should be understandable in isolation:
 
 The intended data movement is:
 - source ingest writes exact payloads into `landing`
-- later standardization jobs normalize and move data into `processed`
+- standardization jobs normalize and move data into `processed/raw`
 - dbt builds consumer-facing models from `processed`
 
 The shared core is expected to own:

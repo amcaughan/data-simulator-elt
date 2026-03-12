@@ -19,6 +19,7 @@ locals {
   athena_results_bucket_name = "${local.project_slug}-${var.environment}-athena-results-${data.aws_caller_identity.current.account_id}-${data.aws_region.current.name}"
   ecr_repositories = {
     source_ingest  = "${local.project_slug}-${var.environment}-source-ingest"
+    standardize    = "${local.project_slug}-${var.environment}-standardize"
     dbt            = "${local.project_slug}-${var.environment}-dbt"
     stream_emitter = "${local.project_slug}-${var.environment}-stream-emitter"
   }
