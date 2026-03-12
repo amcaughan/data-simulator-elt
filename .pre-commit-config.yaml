@@ -1,0 +1,5 @@
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: b66ac75e4fa93d86d78fccd6e2f36d2c0698b2a2
+    hooks:
+      - id: gitleaks
