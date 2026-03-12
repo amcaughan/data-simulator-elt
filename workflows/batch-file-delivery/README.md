@@ -1,4 +1,4 @@
-Scheduled batch-delivery ingestion workflow.
+Scheduled file-delivery workflow.
 
 Intent:
 - treat one API response as one client batch delivery

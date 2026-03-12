@@ -28,17 +28,17 @@ terraform {
 inputs = {
   environment                      = "prod"
   project_name                     = "data-simulator-elt"
-  workflow_name                    = "stream-iot"
+  workflow_name                    = "stream-sampled-events"
   ecs_cluster_arn                  = dependency.core.outputs.ecs_cluster_arn
   network_private_subnet_ids       = dependency.core.outputs.network_private_subnet_ids
   network_security_group_id        = dependency.core.outputs.network_security_group_id
   glue_database_name               = dependency.core.outputs.glue_database_name
   athena_workgroup_name            = dependency.core.outputs.athena_workgroup_name
   simulator_api_url_ssm_param_name = "/services/data-simulator-api/prod/private_api_invoke_url"
-  preset_id                       = "iot_sensor_benchmark"
-  emission_rate_per_minute        = 60
-  stream_schedule_expression      = "rate(1 minute)"
-  dbt_schedule_expression         = "cron(10 * * * ? *)"
-  stream_emitter_container_image  = "${dependency.core.outputs.stream_emitter_ecr_repository_url}:latest"
-  dbt_container_image             = "${dependency.core.outputs.dbt_ecr_repository_url}:latest"
+  preset_id                        = "iot_sensor_benchmark"
+  emission_rate_per_minute         = 60
+  stream_schedule_expression       = "rate(1 minute)"
+  dbt_schedule_expression          = "cron(10 * * * ? *)"
+  stream_emitter_container_image   = "${dependency.core.outputs.stream_emitter_ecr_repository_url}:latest"
+  dbt_container_image              = "${dependency.core.outputs.dbt_ecr_repository_url}:latest"
 }

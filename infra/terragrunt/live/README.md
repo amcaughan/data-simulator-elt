@@ -21,10 +21,10 @@ service endpoints needed for ECS task startup and logging.
 
 Current environment layout:
 - `dev/core`
-- `dev/batch-transactions`
-- `dev/batch-batch-delivery`
-- `dev/stream-iot`
+- `dev/polling-generated-events`
+- `dev/batch-file-delivery`
+- `dev/stream-sampled-events`
 - `prod/core`
-- `prod/batch-transactions`
-- `prod/batch-batch-delivery`
-- `prod/stream-iot`
+- `prod/polling-generated-events`
+- `prod/batch-file-delivery`
+- `prod/stream-sampled-events`

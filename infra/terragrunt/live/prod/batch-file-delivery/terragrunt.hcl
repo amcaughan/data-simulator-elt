@@ -28,17 +28,17 @@ terraform {
 inputs = {
   environment                      = "prod"
   project_name                     = "data-simulator-elt"
-  workflow_name                    = "batch-transactions"
+  workflow_name                    = "batch-file-delivery"
   ecs_cluster_arn                  = dependency.core.outputs.ecs_cluster_arn
   network_private_subnet_ids       = dependency.core.outputs.network_private_subnet_ids
   network_security_group_id        = dependency.core.outputs.network_security_group_id
   glue_database_name               = dependency.core.outputs.glue_database_name
   athena_workgroup_name            = dependency.core.outputs.athena_workgroup_name
   simulator_api_url_ssm_param_name = "/services/data-simulator-api/prod/private_api_invoke_url"
-  ingest_schedule_expression     = "cron(0 */6 * * ? *)"
-  dbt_schedule_expression        = "cron(20 */6 * * ? *)"
-  preset_id                      = "transaction_benchmark"
-  row_count                      = 1000
+  ingest_schedule_expression     = "cron(15 5 * * ? *)"
+  dbt_schedule_expression        = "cron(45 5 * * ? *)"
+  preset_id                      = "batch_delivery_benchmark"
+  row_count                      = 5000
   ingest_container_image         = "${dependency.core.outputs.scheduled_ingest_ecr_repository_url}:latest"
   dbt_container_image            = "${dependency.core.outputs.dbt_ecr_repository_url}:latest"
 }
