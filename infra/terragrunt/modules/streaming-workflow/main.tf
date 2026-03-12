@@ -127,8 +127,8 @@ resource "aws_kinesis_firehose_delivery_stream" "this" {
   }
 }
 
-module "streaming" {
-  source = "../streaming-job"
+module "stream_emitter" {
+  source = "../stream-emitter-job"
 
   environment                    = var.environment
   project_name                   = var.project_name
@@ -180,7 +180,7 @@ data "aws_iam_policy_document" "scheduler" {
     actions = ["ecs:RunTask"]
 
     resources = [
-      module.streaming.task_definition_arn,
+      module.stream_emitter.task_definition_arn,
       module.dbt.task_definition_arn,
     ]
 
@@ -198,8 +198,8 @@ data "aws_iam_policy_document" "scheduler" {
     actions = ["iam:PassRole"]
 
     resources = [
-      module.streaming.task_role_arn,
-      module.streaming.execution_role_arn,
+      module.stream_emitter.task_role_arn,
+      module.stream_emitter.execution_role_arn,
       module.dbt.task_role_arn,
       module.dbt.execution_role_arn,
     ]
@@ -212,7 +212,7 @@ resource "aws_iam_role_policy" "scheduler" {
   policy = data.aws_iam_policy_document.scheduler.json
 }
 
-resource "aws_scheduler_schedule" "streaming" {
+resource "aws_scheduler_schedule" "stream_emitter" {
   name                = "${local.project_slug}-${var.environment}-${var.workflow_name}-emitter"
   schedule_expression = var.stream_schedule_expression
   state               = "ENABLED"
@@ -226,7 +226,7 @@ resource "aws_scheduler_schedule" "streaming" {
     role_arn = aws_iam_role.scheduler.arn
 
     ecs_parameters {
-      task_definition_arn = module.streaming.task_definition_arn
+      task_definition_arn = module.stream_emitter.task_definition_arn
       launch_type         = "FARGATE"
       task_count          = 1
       platform_version    = "LATEST"

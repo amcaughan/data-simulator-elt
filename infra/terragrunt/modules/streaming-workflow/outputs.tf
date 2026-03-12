@@ -14,8 +14,8 @@ output "analytics_bucket_name" {
   value = module.storage.analytics_bucket_name
 }
 
-output "streaming_job_name" {
-  value = module.streaming.job_name
+output "stream_emitter_job_name" {
+  value = module.stream_emitter.job_name
 }
 
 output "dbt_job_name" {
@@ -31,7 +31,7 @@ output "firehose_delivery_stream_name" {
 }
 
 output "stream_schedule_name" {
-  value = aws_scheduler_schedule.streaming.name
+  value = aws_scheduler_schedule.stream_emitter.name
 }
 
 output "dbt_schedule_name" {

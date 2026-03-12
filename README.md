@@ -12,7 +12,7 @@ This repository manages:
 - shared ELT control-plane resources
 - reusable workflow patterns
 - isolated storage and execution boundaries per workflow
-- dbt-based transformation layers over curated data
+- dbt-based transformation layers over processed data
 
 ## Platform shape
 
@@ -63,7 +63,7 @@ path will also need stream-service access.
 - `batch-file-delivery`
   low-frequency larger file-drop style ingestion
 - `stream-sampled-events`
-  stream-emitter ingestion over a sampled event source
+  stream-oriented ingestion with a simulated upstream producer
 
 ## Teardown posture
 
@@ -82,6 +82,10 @@ The platform should make isolation obvious:
 - per-workflow task definitions and task roles
 - per-workflow schedules or stream resources
 - shared control-plane resources only where reuse is intentional
+
+For stream-oriented workflows, the stream emitter is part of the simulation
+boundary rather than the ELT transformation boundary. It stands in for the
+external producer the platform would consume from in a real system.
 
 ## Usage
 

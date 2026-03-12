@@ -13,8 +13,8 @@ The current split is:
   reusable runtime pattern for dbt-based transforms
 - `scheduled-workflow`
   isolated scheduled workflow composition
-- `streaming-job`
-  reusable runtime pattern for event-emitting ingestion
+- `stream-emitter-job`
+  reusable runtime pattern for simulating an upstream stream producer
 - `streaming-workflow`
   isolated streaming workflow composition
 
