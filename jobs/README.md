@@ -1,12 +1,12 @@
 # jobs
 
-Containerized ELT job code lives here.
+Reusable containerized runtime code lives here.
 
 The initial job split is:
-- `ingest/`
-  calls the private simulator API and writes raw payloads to the landing zone
-- `standardize/`
-  validates landing data and writes normalized Parquet to the raw zone
+- `scheduled_ingest/`
+  scheduled pull-based ingestion from the private simulator API
+- `stream_emitter/`
+  event-emitting runtime for stream-oriented workflows
 
 Direct Python dependencies for these jobs should be managed through:
 - `requirements.in`
