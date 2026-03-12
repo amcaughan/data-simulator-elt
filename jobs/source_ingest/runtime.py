@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 import json
 
-from source_ingest.adapters import SimulatorApiAdapter
+from source_ingest.adapters import build_adapter
 from source_ingest.config import IngestConfig, LogicalSlice
 
 
@@ -19,8 +19,8 @@ class LandingObject:
 
 def build_landing_key(config: IngestConfig, logical_slice: LogicalSlice) -> str:
     parts = [
+        f"workflow={config.workflow_name}",
         f"adapter={config.source_adapter}",
-        f"preset_id={config.preset_id}",
         f"year={logical_slice.year}",
         f"month={logical_slice.month}",
         f"day={logical_slice.day}",
@@ -36,20 +36,22 @@ def build_landing_metadata(
     logical_slice: LogicalSlice,
     ingested_at: datetime,
     result_row_count: int | None,
+    source_metadata: dict[str, str],
+    route: str | None,
 ) -> dict[str, str]:
     metadata = {
         "workflow_name": config.workflow_name,
         "source_adapter": config.source_adapter,
-        "preset_id": config.preset_id,
         "logical_date": logical_slice.logical_date.isoformat(),
         "ingested_at": ingested_at.astimezone(UTC).isoformat(),
         "mode": config.mode,
         "partition_granularity": config.partition_granularity,
     }
-    if logical_slice.seed is not None:
-        metadata["seed"] = str(logical_slice.seed)
     if result_row_count is not None:
         metadata["row_count"] = str(result_row_count)
+    if route is not None:
+        metadata["route"] = route
+    metadata.update(source_metadata)
     return metadata
 
 
@@ -64,6 +66,8 @@ class LandingWriter:
         body: bytes,
         content_type: str,
         result_row_count: int | None,
+        source_metadata: dict[str, str],
+        route: str | None,
     ) -> LandingObject:
         ingested_at = datetime.now(UTC)
         key = build_landing_key(self.config, logical_slice)
@@ -72,6 +76,8 @@ class LandingWriter:
             logical_slice=logical_slice,
             ingested_at=ingested_at,
             result_row_count=result_row_count,
+            source_metadata=source_metadata,
+            route=route,
         )
         self.s3_client.put_object(
             Bucket=self.config.landing_bucket_name,
@@ -89,14 +95,13 @@ class LandingWriter:
         )
 
 
-def build_adapter(config: IngestConfig):
-    if config.source_adapter != "simulator_api":
-        raise ValueError(f"Unsupported source adapter: {config.source_adapter}")
-    return SimulatorApiAdapter(config)
-
-
 def run_source_ingest(config: IngestConfig, s3_client) -> list[LandingObject]:
     adapter = build_adapter(config)
+    if config.mode == "backfill" and not adapter.capabilities.supports_backfill:
+        raise ValueError(
+            f"Source adapter '{config.source_adapter}' does not support backfill mode. "
+            "Use MODE=single_run or choose an adapter that can interpret logical date ranges."
+        )
     writer = LandingWriter(config=config, s3_client=s3_client)
     results: list[LandingObject] = []
 
@@ -107,6 +112,8 @@ def run_source_ingest(config: IngestConfig, s3_client) -> list[LandingObject]:
             body=fetched.body,
             content_type=fetched.content_type,
             result_row_count=fetched.row_count,
+            source_metadata=fetched.source_metadata,
+            route=fetched.route,
         )
         print(
             json.dumps(

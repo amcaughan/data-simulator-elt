@@ -8,27 +8,69 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "jobs"))
 
-from source_ingest.adapters.simulator_api import FetchResult, build_generate_payload
+from source_ingest.adapters.base import AdapterCapabilities, FetchResult
+from source_ingest.adapters.simulator_api import (
+    SimulatorApiConfig,
+    build_generate_payload,
+    derive_seed,
+)
 from source_ingest.config import IngestConfig
 from source_ingest.runtime import build_landing_key, run_source_ingest
 
 
 class FakeAdapter:
+    capabilities = AdapterCapabilities(supports_backfill=True)
+
     def fetch(self, logical_slice):
         return FetchResult(
             body=b'{"row_count": 3, "rows": []}',
             content_type="application/json",
             row_count=3,
             route="/v1/presets/transaction_benchmark/generate",
+            source_metadata={"preset_id": "transaction_benchmark"},
         )
 
 
+class NonBackfillAdapter:
+    capabilities = AdapterCapabilities(supports_backfill=False)
+
+    def fetch(self, logical_slice):
+        raise AssertionError("fetch should not be called when backfill is unsupported")
+
+
+class FakeBody:
+    def __init__(self, payload: bytes):
+        self.payload = payload
+
+    def read(self):
+        return self.payload
+
+
 class FakeS3Client:
-    def __init__(self):
+    def __init__(self, objects=None):
         self.calls = []
+        self.objects = objects or {}
 
     def put_object(self, **kwargs):
         self.calls.append(kwargs)
+
+    def get_object(self, Bucket, Key):
+        stored = self.objects[(Bucket, Key)]
+        return {"Body": FakeBody(stored["body"]), "Metadata": stored.get("metadata", {})}
+
+    def get_paginator(self, name):
+        client = self
+
+        class Paginator:
+            def paginate(self, Bucket, Prefix):
+                contents = [
+                    {"Key": key}
+                    for (bucket, key), value in client.objects.items()
+                    if bucket == Bucket and key.startswith(Prefix)
+                ]
+                return [{"Contents": contents}]
+
+        return Paginator()
 
 
 class SourceIngestTests(unittest.TestCase):
@@ -36,28 +78,46 @@ class SourceIngestTests(unittest.TestCase):
         values = {
             "workflow_name": "polling-generated-events",
             "source_adapter": "simulator_api",
-            "simulator_api_url": "https://example.execute-api.us-east-2.amazonaws.com/dev",
-            "preset_id": "transaction_benchmark",
-            "row_count": 250,
             "landing_bucket_name": "landing-bucket",
             "aws_region": "us-east-2",
-            "partition_granularity": "day",
-            "mode": "single_run",
-            "logical_date": None,
-            "start_at": None,
-            "end_at": None,
-            "backfill_days": None,
-            "seed_strategy": "derived",
-            "fixed_seed": None,
-            "request_overrides": {},
+            "source_base_url": "https://example.execute-api.us-east-2.amazonaws.com/dev",
+            "slice_window": None,
+            "source_adapter_config": {
+                "preset_id": "transaction_benchmark",
+                "row_count": 250,
+                "seed_strategy": "derived",
+                "request_overrides": {},
+            },
         }
         values.update(overrides)
+        if values["slice_window"] is None:
+            from common.slices import SliceWindowConfig
+
+            values["slice_window"] = SliceWindowConfig(
+                partition_granularity="day",
+                mode="single_run",
+                logical_date=None,
+                start_at=None,
+                end_at=None,
+                backfill_days=None,
+            )
         config = IngestConfig(**values)
         config.validate()
         return config
 
     def test_single_run_uses_truncated_logical_date(self):
-        config = self.build_config(partition_granularity="hour")
+        from common.slices import SliceWindowConfig
+
+        config = self.build_config(
+            slice_window=SliceWindowConfig(
+                partition_granularity="hour",
+                mode="single_run",
+                logical_date=None,
+                start_at=None,
+                end_at=None,
+                backfill_days=None,
+            )
+        )
 
         slices = config.iter_slices(now=datetime(2026, 3, 12, 10, 49, tzinfo=UTC))
 
@@ -67,7 +127,18 @@ class SourceIngestTests(unittest.TestCase):
         )
 
     def test_backfill_days_expands_date_range(self):
-        config = self.build_config(mode="backfill", backfill_days=3)
+        from common.slices import SliceWindowConfig
+
+        config = self.build_config(
+            slice_window=SliceWindowConfig(
+                partition_granularity="day",
+                mode="backfill",
+                logical_date=None,
+                start_at=None,
+                end_at=None,
+                backfill_days=3,
+            )
+        )
 
         slices = config.iter_slices(now=datetime(2026, 3, 12, 9, 30, tzinfo=UTC))
 
@@ -81,14 +152,24 @@ class SourceIngestTests(unittest.TestCase):
         )
 
     def test_seed_derivation_is_deterministic(self):
-        config = self.build_config(
-            mode="single_run",
-            logical_date="2026-03-12",
-            seed_strategy="derived",
-        )
+        logical_slice = self.build_config().iter_slices(
+            now=datetime(2026, 3, 12, 9, 30, tzinfo=UTC)
+        )[0]
 
-        first = config.iter_slices()[0].seed
-        second = config.iter_slices()[0].seed
+        first = derive_seed(
+            workflow_name="polling-generated-events",
+            preset_id="transaction_benchmark",
+            logical_slice=logical_slice,
+            strategy="derived",
+            fixed_seed=None,
+        )
+        second = derive_seed(
+            workflow_name="polling-generated-events",
+            preset_id="transaction_benchmark",
+            logical_slice=logical_slice,
+            strategy="derived",
+            fixed_seed=None,
+        )
 
         self.assertEqual(first, second)
 
@@ -104,22 +185,48 @@ class SourceIngestTests(unittest.TestCase):
             {"description": "test", "row_count": 25, "seed": 17},
         )
 
-    def test_build_landing_key_includes_hour_partition(self):
+    def test_simulator_adapter_config_requires_preset_and_row_count(self):
+        with self.assertRaisesRegex(ValueError, "preset_id"):
+            SimulatorApiConfig.from_dict({"row_count": 1})
+
+        with self.assertRaisesRegex(ValueError, "row_count"):
+            SimulatorApiConfig.from_dict({"preset_id": "foo", "row_count": 0})
+
+    def test_build_landing_key_is_generic(self):
+        from common.slices import SliceWindowConfig
+
         config = self.build_config(
-            partition_granularity="hour",
-            logical_date="2026-03-12T08:00:00Z",
+            slice_window=SliceWindowConfig(
+                partition_granularity="hour",
+                mode="single_run",
+                logical_date="2026-03-12T08:00:00Z",
+                start_at=None,
+                end_at=None,
+                backfill_days=None,
+            )
         )
         logical_slice = config.iter_slices()[0]
 
         key = build_landing_key(config, logical_slice)
 
+        self.assertIn("workflow=polling-generated-events", key)
         self.assertIn("adapter=simulator_api", key)
-        self.assertIn("preset_id=transaction_benchmark", key)
         self.assertIn("year=2026/month=03/day=12/hour=08", key)
         self.assertTrue(key.endswith(".json"))
 
     def test_run_source_ingest_writes_landing_object(self):
-        config = self.build_config(logical_date="2026-03-12")
+        from common.slices import SliceWindowConfig
+
+        config = self.build_config(
+            slice_window=SliceWindowConfig(
+                partition_granularity="day",
+                mode="single_run",
+                logical_date="2026-03-12",
+                start_at=None,
+                end_at=None,
+                backfill_days=None,
+            )
+        )
         s3_client = FakeS3Client()
 
         with (
@@ -134,6 +241,28 @@ class SourceIngestTests(unittest.TestCase):
         self.assertEqual(put_call["Bucket"], "landing-bucket")
         self.assertEqual(put_call["ContentType"], "application/json")
         self.assertEqual(put_call["Metadata"]["workflow_name"], "polling-generated-events")
+        self.assertEqual(put_call["Metadata"]["preset_id"], "transaction_benchmark")
+
+    def test_run_source_ingest_rejects_unsupported_backfill(self):
+        from common.slices import SliceWindowConfig
+
+        config = self.build_config(
+            source_adapter="unsupported_source",
+            slice_window=SliceWindowConfig(
+                partition_granularity="day",
+                mode="backfill",
+                logical_date=None,
+                start_at=None,
+                end_at=None,
+                backfill_days=2,
+            ),
+        )
+
+        with patch(
+            "source_ingest.runtime.build_adapter", return_value=NonBackfillAdapter()
+        ):
+            with self.assertRaisesRegex(ValueError, "does not support backfill mode"):
+                run_source_ingest(config=config, s3_client=FakeS3Client())
 
 
 if __name__ == "__main__":

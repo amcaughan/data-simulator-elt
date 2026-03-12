@@ -1,21 +1,18 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
 import json
 from typing import Any
 import urllib.error
 import urllib.parse
 import urllib.request
 
-from source_ingest.config import IngestConfig, LogicalSlice
+from common.slices import LogicalSlice
+from source_ingest.adapters.base import AdapterCapabilities, FetchResult
 
 
-@dataclass(frozen=True)
-class FetchResult:
-    body: bytes
-    content_type: str
-    row_count: int | None
-    route: str
+VALID_SEED_STRATEGIES = {"derived", "fixed", "none"}
 
 
 def build_generate_payload(
@@ -30,20 +27,111 @@ def build_generate_payload(
     return payload
 
 
+def derive_seed(
+    workflow_name: str,
+    preset_id: str,
+    logical_slice: LogicalSlice,
+    strategy: str,
+    fixed_seed: int | None,
+) -> int | None:
+    if strategy == "none":
+        return None
+    if strategy == "fixed":
+        return fixed_seed
+
+    namespace = "|".join(
+        [
+            workflow_name,
+            preset_id,
+            logical_slice.logical_date.isoformat(),
+        ]
+    )
+    digest = hashlib.sha256(namespace.encode("utf-8")).hexdigest()
+    return int(digest[:16], 16) % (2**31)
+
+
+@dataclass(frozen=True)
+class SimulatorApiConfig:
+    preset_id: str
+    row_count: int
+    seed_strategy: str
+    fixed_seed: int | None
+    request_overrides: dict[str, Any]
+
+    @classmethod
+    def from_dict(cls, value: dict[str, Any]) -> "SimulatorApiConfig":
+        preset_id = value.get("preset_id")
+        row_count = value.get("row_count")
+        seed_strategy = value.get("seed_strategy", "derived")
+        fixed_seed = value.get("fixed_seed")
+        request_overrides = value.get("request_overrides", {})
+
+        if not isinstance(preset_id, str) or preset_id == "":
+            raise ValueError(
+                "Simulator API adapter config requires a non-empty 'preset_id'"
+            )
+        if not isinstance(row_count, int) or row_count < 1:
+            raise ValueError(
+                "Simulator API adapter config requires 'row_count' to be a positive integer"
+            )
+        if seed_strategy not in VALID_SEED_STRATEGIES:
+            raise ValueError(
+                f"Simulator API adapter config 'seed_strategy' must be one of {sorted(VALID_SEED_STRATEGIES)}"
+            )
+        if seed_strategy == "fixed" and not isinstance(fixed_seed, int):
+            raise ValueError(
+                "Simulator API adapter config requires integer 'fixed_seed' when seed_strategy='fixed'"
+            )
+        if not isinstance(request_overrides, dict):
+            raise ValueError(
+                "Simulator API adapter config field 'request_overrides' must be a JSON object"
+            )
+
+        return cls(
+            preset_id=preset_id,
+            row_count=row_count,
+            seed_strategy=seed_strategy,
+            fixed_seed=fixed_seed,
+            request_overrides=request_overrides,
+        )
+
+
 class SimulatorApiAdapter:
-    def __init__(self, config: IngestConfig):
-        self.config = config
+    capabilities = AdapterCapabilities(supports_backfill=True)
+
+    def __init__(
+        self,
+        workflow_name: str,
+        aws_region: str,
+        source_base_url: str | None,
+        adapter_config: SimulatorApiConfig,
+    ):
+        if source_base_url in {None, ""}:
+            raise ValueError(
+                "Source adapter 'simulator_api' requires SOURCE_BASE_URL to be set"
+            )
+
+        self.workflow_name = workflow_name
+        self.aws_region = aws_region
+        self.source_base_url = source_base_url
+        self.adapter_config = adapter_config
 
     def fetch(self, logical_slice: LogicalSlice) -> FetchResult:
-        route = f"/v1/presets/{self.config.preset_id}/generate"
+        route = f"/v1/presets/{self.adapter_config.preset_id}/generate"
         url = urllib.parse.urljoin(
-            self.config.simulator_api_url.rstrip("/") + "/",
+            self.source_base_url.rstrip("/") + "/",
             route.lstrip("/"),
         )
         payload = build_generate_payload(
-            request_overrides=self.config.request_overrides,
-            row_count=self.config.row_count,
-            seed=logical_slice.seed,
+            request_overrides=self.adapter_config.request_overrides,
+            row_count=self.adapter_config.row_count,
+            seed=derive_seed(
+                workflow_name=self.workflow_name,
+                preset_id=self.adapter_config.preset_id,
+                logical_slice=logical_slice,
+                strategy=self.adapter_config.seed_strategy,
+                fixed_seed=self.adapter_config.fixed_seed,
+            ),
         )
         response_bytes, content_type = self._signed_post(url, payload)
         parsed = json.loads(response_bytes.decode("utf-8"))
@@ -53,6 +141,7 @@ class SimulatorApiAdapter:
             content_type=content_type,
             row_count=row_count if isinstance(row_count, int) else None,
             route=route,
+            source_metadata={"preset_id": self.adapter_config.preset_id},
         )
 
     def _signed_post(self, url: str, payload: dict[str, Any]) -> tuple[bytes, str]:
@@ -75,7 +164,7 @@ class SimulatorApiAdapter:
         SigV4Auth(
             credentials=credentials.get_frozen_credentials(),
             service_name="execute-api",
-            region_name=self.config.aws_region,
+            region_name=self.aws_region,
         ).add_auth(request)
         prepared_request = request.prepare()
 

@@ -20,21 +20,14 @@ variable "landing_bucket_name" {
   type = string
 }
 
-variable "simulator_api_url_ssm_param_name" {
+variable "source_base_url_ssm_param_name" {
   type = string
+  default = null
 }
 
 variable "source_adapter" {
   type    = string
   default = "simulator_api"
-}
-
-variable "preset_id" {
-  type = string
-}
-
-variable "row_count" {
-  type = number
 }
 
 variable "partition_granularity" {
@@ -67,19 +60,8 @@ variable "backfill_days" {
   default = null
 }
 
-variable "seed_strategy" {
-  type    = string
-  default = "derived"
-}
-
-variable "fixed_seed" {
-  type    = number
-  default = null
-}
-
-variable "request_overrides_json" {
-  type    = string
-  default = "{}"
+variable "source_adapter_config_json" {
+  type = string
 }
 
 variable "container_image" {

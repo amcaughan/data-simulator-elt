@@ -1,5 +1,6 @@
-data "aws_ssm_parameter" "simulator_api_url" {
-  name = var.simulator_api_url_ssm_param_name
+data "aws_ssm_parameter" "source_base_url" {
+  count = var.source_base_url_ssm_param_name == null ? 0 : 1
+  name  = var.source_base_url_ssm_param_name
 }
 
 locals {
@@ -11,14 +12,6 @@ locals {
       {
         name  = "WORKFLOW_NAME"
         value = var.workflow_name
-      },
-      {
-        name  = "PRESET_ID"
-        value = var.preset_id
-      },
-      {
-        name  = "ROW_COUNT"
-        value = tostring(var.row_count)
       },
       {
         name  = "SOURCE_ADAPTER"
@@ -41,12 +34,8 @@ locals {
         value = var.aws_region
       },
       {
-        name  = "SEED_STRATEGY"
-        value = var.seed_strategy
-      },
-      {
-        name  = "REQUEST_OVERRIDES_JSON"
-        value = var.request_overrides_json
+        name  = "SOURCE_ADAPTER_CONFIG_JSON"
+        value = var.source_adapter_config_json
       },
     ],
     var.logical_date == null ? [] : [
@@ -71,12 +60,6 @@ locals {
       {
         name  = "BACKFILL_DAYS"
         value = tostring(var.backfill_days)
-      }
-    ],
-    var.fixed_seed == null ? [] : [
-      {
-        name  = "FIXED_SEED"
-        value = tostring(var.fixed_seed)
       }
     ],
   )
@@ -127,13 +110,17 @@ data "aws_iam_policy_document" "task_policy" {
     ]
   }
 
-  statement {
-    sid    = "ReadApiUrlParameter"
-    effect = "Allow"
+  dynamic "statement" {
+    for_each = var.source_base_url_ssm_param_name == null ? [] : [1]
 
-    actions = ["ssm:GetParameter"]
+    content {
+      sid    = "ReadSourceBaseUrlParameter"
+      effect = "Allow"
 
-    resources = [data.aws_ssm_parameter.simulator_api_url.arn]
+      actions = ["ssm:GetParameter"]
+
+      resources = [data.aws_ssm_parameter.source_base_url[0].arn]
+    }
   }
 }
 
@@ -165,9 +152,9 @@ resource "aws_ecs_task_definition" "this" {
       command   = var.command
       environment = local.environment
       secrets = [
-        {
-          name      = "SIMULATOR_API_URL"
-          valueFrom = data.aws_ssm_parameter.simulator_api_url.arn
+        for parameter in data.aws_ssm_parameter.source_base_url : {
+          name      = "SOURCE_BASE_URL"
+          valueFrom = parameter.arn
         }
       ]
       logConfiguration = {
