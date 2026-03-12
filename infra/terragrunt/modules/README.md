@@ -7,8 +7,8 @@ The current split is:
   shared control-plane resources for one environment
 - `isolated-storage`
   per-workflow landing, processed, and analytics storage
-- `scheduled-ingest-job`
-  reusable runtime pattern for scheduled API ingestion
+- `source-ingest-job`
+  reusable runtime pattern for source landing ingestion
 - `dbt-job`
   reusable runtime pattern for dbt-based transforms
 - `scheduled-workflow`

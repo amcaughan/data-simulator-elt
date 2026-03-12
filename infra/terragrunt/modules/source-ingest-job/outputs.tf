@@ -1,5 +1,5 @@
 output "job_name" {
-  value = "${var.project_name}-${var.environment}-${var.workflow_name}-ingest"
+  value = "${var.project_name}-${var.environment}-${var.workflow_name}-source-ingest"
 }
 
 output "task_definition_arn" {

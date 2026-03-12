@@ -18,9 +18,9 @@ locals {
   analytics_database_name    = replace("${var.project_name}_${var.environment}", "-", "_")
   athena_results_bucket_name = "${local.project_slug}-${var.environment}-athena-results-${data.aws_caller_identity.current.account_id}-${data.aws_region.current.name}"
   ecr_repositories = {
-    scheduled_ingest = "${local.project_slug}-${var.environment}-scheduled-ingest"
-    dbt             = "${local.project_slug}-${var.environment}-dbt"
-    stream_emitter  = "${local.project_slug}-${var.environment}-stream-emitter"
+    source_ingest  = "${local.project_slug}-${var.environment}-source-ingest"
+    dbt            = "${local.project_slug}-${var.environment}-dbt"
+    stream_emitter = "${local.project_slug}-${var.environment}-stream-emitter"
   }
 }
 

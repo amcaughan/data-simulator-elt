@@ -10,18 +10,27 @@ module "storage" {
   workflow_name = var.workflow_name
 }
 
-module "ingest" {
-  source = "../scheduled-ingest-job"
+module "source_ingest" {
+  source = "../source-ingest-job"
 
-  environment                    = var.environment
-  project_name                   = var.project_name
-  workflow_name                  = var.workflow_name
+  environment                      = var.environment
+  project_name                     = var.project_name
+  workflow_name                    = var.workflow_name
   landing_bucket_name              = module.storage.landing_bucket_name
-  processed_bucket_name            = module.storage.processed_bucket_name
   simulator_api_url_ssm_param_name = var.simulator_api_url_ssm_param_name
-  preset_id                      = var.preset_id
-  row_count                      = var.row_count
-  container_image                = var.ingest_container_image
+  source_adapter                   = var.source_adapter
+  preset_id                        = var.preset_id
+  row_count                        = var.row_count
+  partition_granularity            = var.partition_granularity
+  mode                             = var.source_ingest_mode
+  logical_date                     = var.source_ingest_logical_date
+  start_at                         = var.source_ingest_start_at
+  end_at                           = var.source_ingest_end_at
+  backfill_days                    = var.source_ingest_backfill_days
+  seed_strategy                    = var.source_ingest_seed_strategy
+  fixed_seed                       = var.source_ingest_fixed_seed
+  request_overrides_json           = var.source_ingest_request_overrides_json
+  container_image                  = var.source_ingest_container_image
 }
 
 module "dbt" {
@@ -63,7 +72,7 @@ data "aws_iam_policy_document" "scheduler" {
     actions = ["ecs:RunTask"]
 
     resources = [
-      module.ingest.task_definition_arn,
+      module.source_ingest.task_definition_arn,
       module.dbt.task_definition_arn,
     ]
 
@@ -81,8 +90,8 @@ data "aws_iam_policy_document" "scheduler" {
     actions = ["iam:PassRole"]
 
     resources = [
-      module.ingest.task_role_arn,
-      module.ingest.execution_role_arn,
+      module.source_ingest.task_role_arn,
+      module.source_ingest.execution_role_arn,
       module.dbt.task_role_arn,
       module.dbt.execution_role_arn,
     ]
@@ -95,8 +104,8 @@ resource "aws_iam_role_policy" "scheduler" {
   policy = data.aws_iam_policy_document.scheduler.json
 }
 
-resource "aws_scheduler_schedule" "ingest" {
-  name                = "${local.project_slug}-${var.environment}-${var.workflow_name}-ingest"
+resource "aws_scheduler_schedule" "source_ingest" {
+  name                = "${local.project_slug}-${var.environment}-${var.workflow_name}-source-ingest"
   schedule_expression = var.ingest_schedule_expression
   state               = "ENABLED"
 
@@ -109,7 +118,7 @@ resource "aws_scheduler_schedule" "ingest" {
     role_arn = aws_iam_role.scheduler.arn
 
     ecs_parameters {
-      task_definition_arn = module.ingest.task_definition_arn
+      task_definition_arn = module.source_ingest.task_definition_arn
       launch_type         = "FARGATE"
       task_count          = 1
       platform_version    = "LATEST"

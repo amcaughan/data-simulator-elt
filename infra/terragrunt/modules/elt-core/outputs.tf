@@ -26,8 +26,8 @@ output "athena_results_bucket_name" {
   value = aws_s3_bucket.athena_results.bucket
 }
 
-output "scheduled_ingest_ecr_repository_url" {
-  value = aws_ecr_repository.this["scheduled_ingest"].repository_url
+output "source_ingest_ecr_repository_url" {
+  value = aws_ecr_repository.this["source_ingest"].repository_url
 }
 
 output "dbt_ecr_repository_url" {

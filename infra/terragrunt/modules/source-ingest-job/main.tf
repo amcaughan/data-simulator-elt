@@ -4,8 +4,82 @@ data "aws_ssm_parameter" "simulator_api_url" {
 
 locals {
   project_slug   = replace(var.project_name, "_", "-")
-  family_name    = "${local.project_slug}-${var.environment}-${var.workflow_name}-scheduled-ingest"
+  family_name    = "${local.project_slug}-${var.environment}-${var.workflow_name}-source-ingest"
   log_group_name = "/ecs/${local.family_name}"
+  environment = concat(
+    [
+      {
+        name  = "WORKFLOW_NAME"
+        value = var.workflow_name
+      },
+      {
+        name  = "PRESET_ID"
+        value = var.preset_id
+      },
+      {
+        name  = "ROW_COUNT"
+        value = tostring(var.row_count)
+      },
+      {
+        name  = "SOURCE_ADAPTER"
+        value = var.source_adapter
+      },
+      {
+        name  = "PARTITION_GRANULARITY"
+        value = var.partition_granularity
+      },
+      {
+        name  = "MODE"
+        value = var.mode
+      },
+      {
+        name  = "LANDING_BUCKET_NAME"
+        value = var.landing_bucket_name
+      },
+      {
+        name  = "AWS_REGION"
+        value = var.aws_region
+      },
+      {
+        name  = "SEED_STRATEGY"
+        value = var.seed_strategy
+      },
+      {
+        name  = "REQUEST_OVERRIDES_JSON"
+        value = var.request_overrides_json
+      },
+    ],
+    var.logical_date == null ? [] : [
+      {
+        name  = "LOGICAL_DATE"
+        value = var.logical_date
+      }
+    ],
+    var.start_at == null ? [] : [
+      {
+        name  = "START_AT"
+        value = var.start_at
+      }
+    ],
+    var.end_at == null ? [] : [
+      {
+        name  = "END_AT"
+        value = var.end_at
+      }
+    ],
+    var.backfill_days == null ? [] : [
+      {
+        name  = "BACKFILL_DAYS"
+        value = tostring(var.backfill_days)
+      }
+    ],
+    var.fixed_seed == null ? [] : [
+      {
+        name  = "FIXED_SEED"
+        value = tostring(var.fixed_seed)
+      }
+    ],
+  )
 }
 
 data "aws_iam_policy_document" "task_assume_role" {
@@ -50,8 +124,6 @@ data "aws_iam_policy_document" "task_policy" {
     resources = [
       "arn:aws:s3:::${var.landing_bucket_name}",
       "arn:aws:s3:::${var.landing_bucket_name}/*",
-      "arn:aws:s3:::${var.processed_bucket_name}",
-      "arn:aws:s3:::${var.processed_bucket_name}/*",
     ]
   }
 
@@ -87,36 +159,11 @@ resource "aws_ecs_task_definition" "this" {
 
   container_definitions = jsonencode([
     {
-      name      = "scheduled-ingest"
+      name      = "source-ingest"
       image     = var.container_image
       essential = true
       command   = var.command
-      environment = [
-        {
-          name  = "WORKFLOW_NAME"
-          value = var.workflow_name
-        },
-        {
-          name  = "PRESET_ID"
-          value = var.preset_id
-        },
-        {
-          name  = "ROW_COUNT"
-          value = tostring(var.row_count)
-        },
-        {
-          name  = "LANDING_BUCKET_NAME"
-          value = var.landing_bucket_name
-        },
-        {
-          name  = "PROCESSED_BUCKET_NAME"
-          value = var.processed_bucket_name
-        },
-        {
-          name  = "AWS_REGION"
-          value = var.aws_region
-        },
-      ]
+      environment = local.environment
       secrets = [
         {
           name      = "SIMULATOR_API_URL"

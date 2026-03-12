@@ -14,7 +14,7 @@ dependency "core" {
     network_vpc_id                      = "vpc-placeholder"
     network_private_subnet_ids          = ["subnet-placeholder"]
     network_security_group_id           = "sg-placeholder"
-    scheduled_ingest_ecr_repository_url = "111111111111.dkr.ecr.us-east-2.amazonaws.com/data-simulator-elt-prod-scheduled-ingest"
+    source_ingest_ecr_repository_url    = "111111111111.dkr.ecr.us-east-2.amazonaws.com/data-simulator-elt-prod-source-ingest"
     dbt_ecr_repository_url              = "111111111111.dkr.ecr.us-east-2.amazonaws.com/data-simulator-elt-prod-dbt"
   }
 
@@ -35,10 +35,11 @@ inputs = {
   glue_database_name               = dependency.core.outputs.glue_database_name
   athena_workgroup_name            = dependency.core.outputs.athena_workgroup_name
   simulator_api_url_ssm_param_name = "/services/data-simulator-api/prod/private_api_invoke_url"
-  ingest_schedule_expression     = "cron(15 5 * * ? *)"
-  dbt_schedule_expression        = "cron(45 5 * * ? *)"
-  preset_id                      = "batch_delivery_benchmark"
-  row_count                      = 5000
-  ingest_container_image         = "${dependency.core.outputs.scheduled_ingest_ecr_repository_url}:latest"
-  dbt_container_image            = "${dependency.core.outputs.dbt_ecr_repository_url}:latest"
+  ingest_schedule_expression       = "cron(15 5 * * ? *)"
+  dbt_schedule_expression          = null
+  preset_id                        = "batch_delivery_benchmark"
+  partition_granularity            = "day"
+  row_count                        = 5000
+  source_ingest_container_image    = "${dependency.core.outputs.source_ingest_ecr_repository_url}:latest"
+  dbt_container_image              = "${dependency.core.outputs.dbt_ecr_repository_url}:latest"
 }
