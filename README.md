@@ -19,7 +19,7 @@ Repository structure
 - `dbt/` for the dbt project and model layout
 - `infra/terragrunt/modules/` for Terraform modules local to this repo
 - `infra/terragrunt/live/` for deployable stacks
-- `docker/dev/` for the local development container
+- `local/` for local development tooling
 
 Planned pipeline shape
 
