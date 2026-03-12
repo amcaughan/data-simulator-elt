@@ -15,7 +15,7 @@ output "ecs_cluster_arn" {
 }
 
 output "glue_database_name" {
-  value = aws_glue_catalog_database.this.name
+  value = aws_athena_database.this.name
 }
 
 output "athena_workgroup_name" {

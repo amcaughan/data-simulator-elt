@@ -15,7 +15,7 @@ data "aws_ssm_parameter" "network_shared_security_group_id" {
 
 locals {
   project_slug               = replace(var.project_name, "_", "-")
-  glue_database_name         = replace("${var.project_name}_${var.environment}", "-", "_")
+  analytics_database_name    = replace("${var.project_name}_${var.environment}", "-", "_")
   athena_results_bucket_name = "${local.project_slug}-${var.environment}-athena-results-${data.aws_caller_identity.current.account_id}-${data.aws_region.current.name}"
   ecr_repositories = {
     scheduled_ingest = "${local.project_slug}-${var.environment}-scheduled-ingest"
@@ -28,12 +28,9 @@ resource "aws_ecs_cluster" "this" {
   name = "${local.project_slug}-${var.environment}"
 }
 
-resource "aws_glue_catalog_database" "this" {
-  name = local.glue_database_name
-}
-
 resource "aws_s3_bucket" "athena_results" {
-  bucket = local.athena_results_bucket_name
+  bucket        = local.athena_results_bucket_name
+  force_destroy = var.force_destroy_stateful_resources
 }
 
 resource "aws_s3_bucket_versioning" "athena_results" {
@@ -105,11 +102,18 @@ resource "aws_athena_workgroup" "this" {
   }
 }
 
+resource "aws_athena_database" "this" {
+  name          = local.analytics_database_name
+  bucket        = aws_s3_bucket.athena_results.bucket
+  force_destroy = var.force_destroy_stateful_resources
+}
+
 resource "aws_ecr_repository" "this" {
   for_each = local.ecr_repositories
 
   name                 = each.value
   image_tag_mutability = "MUTABLE"
+  force_delete         = var.force_destroy_stateful_resources
 
   image_scanning_configuration {
     scan_on_push = true
@@ -129,7 +133,7 @@ resource "aws_ssm_parameter" "glue_database_name" {
 
   name  = "${var.ssm_prefix}/glue_database_name"
   type  = "String"
-  value = aws_glue_catalog_database.this.name
+  value = aws_athena_database.this.name
 }
 
 resource "aws_ssm_parameter" "athena_workgroup_name" {

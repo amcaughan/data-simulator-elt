@@ -58,12 +58,22 @@ path will also need stream-service access.
 
 ## Initial example workloads
 
-- `batch-transactions`
-  scheduled ingestion of transaction benchmark data
-- `batch-batch-delivery`
-  scheduled ingestion of file-drop style batch delivery data
-- `stream-iot`
-  stream-oriented ingestion path for IoT-style events
+- `polling-generated-events`
+  frequent scheduled pulls that act like a polling workflow
+- `batch-file-delivery`
+  low-frequency larger file-drop style ingestion
+- `stream-sampled-events`
+  stream-emitter ingestion over a sampled event source
+
+## Teardown posture
+
+This repository is intentionally biased toward easy teardown.
+
+- workflow and Athena-results buckets use force destroy
+- ECR repositories use force delete
+- the shared analytics database is managed through Athena with force destroy
+
+The goal is to make environment cleanup easy when the data itself is disposable.
 
 ## Isolation model
 

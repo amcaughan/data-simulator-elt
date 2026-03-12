@@ -10,3 +10,8 @@ variable "project_name" {
 variable "workflow_name" {
   type = string
 }
+
+variable "force_destroy_buckets" {
+  type    = bool
+  default = true
+}

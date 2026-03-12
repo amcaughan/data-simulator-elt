@@ -13,7 +13,8 @@ locals {
 resource "aws_s3_bucket" "this" {
   for_each = local.bucket_names
 
-  bucket = each.value
+  bucket        = each.value
+  force_destroy = var.force_destroy_buckets
 }
 
 resource "aws_s3_bucket_versioning" "this" {

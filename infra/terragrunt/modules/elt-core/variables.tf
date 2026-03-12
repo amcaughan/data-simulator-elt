@@ -24,6 +24,11 @@ variable "publish_ssm_parameters" {
   default = true
 }
 
+variable "force_destroy_stateful_resources" {
+  type    = bool
+  default = true
+}
+
 variable "ssm_prefix" {
   type = string
 }
