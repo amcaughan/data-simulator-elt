@@ -7,6 +7,12 @@ in `infra/terragrunt/modules/`. The ELT core stack builds immutable runtime
 images from these directories and publishes image URIs for workflow stacks to
 consume.
 
+Each runtime directory should be self-contained enough to publish as an image:
+- `Dockerfile`
+- `requirements.in`
+- `requirements.txt`
+- runtime code and any local scaffolding
+
 The initial job split is:
 - `source_ingest/`
   source-facing landing ingestion with generic slice orchestration and source adapters
@@ -16,10 +22,6 @@ The initial job split is:
   dbt project and runtime packaging for processed-to-marts transforms
 - `stream_emitter/`
   upstream source simulation for stream-oriented workflows
-
-Direct Python dependencies for these jobs should be managed through:
-- `requirements.in`
-- `requirements.txt`
 
 The source-ingest runtime is intentionally adapter-driven:
 - generic date/backfill orchestration

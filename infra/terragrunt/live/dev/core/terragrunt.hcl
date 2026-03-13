@@ -15,14 +15,9 @@ inputs = {
   publish_ssm_parameters                      = true
   publish_runtime_images                      = true
   jobs_build_context_dir                      = "${get_repo_root()}/jobs"
-  jobs_requirements_file                      = "${get_repo_root()}/jobs/requirements.txt"
   common_source_dir                           = "${get_repo_root()}/jobs/common"
   source_ingest_source_dir                    = "${get_repo_root()}/jobs/source_ingest"
-  source_ingest_dockerfile_path               = "${get_repo_root()}/jobs/source_ingest/Dockerfile"
   standardize_source_dir                      = "${get_repo_root()}/jobs/standardize"
-  standardize_dockerfile_path                 = "${get_repo_root()}/jobs/standardize/Dockerfile"
   dbt_source_dir                              = "${get_repo_root()}/jobs/dbt"
-  dbt_requirements_file                       = "${get_repo_root()}/jobs/dbt/requirements.txt"
-  dbt_dockerfile_path                         = "${get_repo_root()}/jobs/dbt/Dockerfile"
   ssm_prefix                                  = "/services/data-simulator-elt/dev/core"
 }

@@ -7,7 +7,7 @@ variable "repository_url" {
   type = string
 }
 
-variable "dockerfile_path" {
+variable "runtime_source_dir" {
   type = string
 }
 
@@ -15,11 +15,12 @@ variable "build_context_dir" {
   type = string
 }
 
-variable "hash_dirs" {
+variable "extra_hash_dirs" {
   type = list(string)
+  default = []
 }
 
-variable "hash_files" {
+variable "extra_hash_files" {
   type    = list(string)
   default = []
 }

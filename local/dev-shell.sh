@@ -54,7 +54,7 @@ run() {
 
   docker run "${docker_args[@]}" \
     "$IMAGE_NAME" \
-    /bin/bash -lc 'if [[ -f /workspace/jobs/requirements.txt ]] && [[ -s /workspace/jobs/requirements.txt ]]; then python3 -m pip install --user -r /workspace/jobs/requirements.txt; fi; if [[ -f /workspace/jobs/dbt/requirements.txt ]] && [[ -s /workspace/jobs/dbt/requirements.txt ]]; then python3 -m pip install --user -r /workspace/jobs/dbt/requirements.txt; fi; exec /bin/bash'
+    /bin/bash -lc 'shopt -s nullglob; for req in /workspace/jobs/*/requirements.txt; do if [[ -s "$req" ]]; then python3 -m pip install --user -r "$req"; fi; done; exec /bin/bash'
 }
 
 if [[ $# -eq 0 ]]; then

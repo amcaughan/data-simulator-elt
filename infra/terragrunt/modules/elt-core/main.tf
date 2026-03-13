@@ -162,15 +162,10 @@ module "source_ingest_image" {
 
   aws_region        = data.aws_region.current.name
   repository_url    = aws_ecr_repository.this["source_ingest"].repository_url
-  dockerfile_path   = var.source_ingest_dockerfile_path
+  runtime_source_dir = var.source_ingest_source_dir
   build_context_dir = var.jobs_build_context_dir
-  hash_dirs = [
+  extra_hash_dirs = [
     var.common_source_dir,
-    var.source_ingest_source_dir,
-  ]
-  hash_files = [
-    var.jobs_requirements_file,
-    var.source_ingest_dockerfile_path,
   ]
 }
 
@@ -180,15 +175,10 @@ module "standardize_image" {
 
   aws_region        = data.aws_region.current.name
   repository_url    = aws_ecr_repository.this["standardize"].repository_url
-  dockerfile_path   = var.standardize_dockerfile_path
+  runtime_source_dir = var.standardize_source_dir
   build_context_dir = var.jobs_build_context_dir
-  hash_dirs = [
+  extra_hash_dirs = [
     var.common_source_dir,
-    var.standardize_source_dir,
-  ]
-  hash_files = [
-    var.jobs_requirements_file,
-    var.standardize_dockerfile_path,
   ]
 }
 
@@ -198,15 +188,8 @@ module "dbt_image" {
 
   aws_region        = data.aws_region.current.name
   repository_url    = aws_ecr_repository.this["dbt"].repository_url
-  dockerfile_path   = var.dbt_dockerfile_path
+  runtime_source_dir = var.dbt_source_dir
   build_context_dir = var.jobs_build_context_dir
-  hash_dirs = [
-    var.dbt_source_dir,
-  ]
-  hash_files = [
-    var.dbt_requirements_file,
-    var.dbt_dockerfile_path,
-  ]
 }
 
 resource "aws_ssm_parameter" "ecs_cluster_name" {
