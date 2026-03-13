@@ -3,7 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import uuid4
 
-from common.slices import LogicalSlice, granularity_step
+from common.slices import LogicalSlice
+from common.storage_layout import PartitionComponent, build_partition_components
 from source_ingest.adapters.base import (
     LiveFetchRequest,
     MultiSliceFetchRequest,
@@ -17,6 +18,8 @@ from source_ingest.config import IngestConfig
 @dataclass(frozen=True)
 class StorageTarget:
     logical_slice: LogicalSlice
+    partition_components: tuple[PartitionComponent, ...]
+    object_stem: str
 
 
 @dataclass(frozen=True)
@@ -27,22 +30,31 @@ class FetchPlan:
 
 def build_storage_targets(config: IngestConfig, now=None) -> tuple[StorageTarget, ...]:
     return tuple(
-        StorageTarget(
-            logical_slice=LogicalSlice(logical_date=logical_date, run_id=str(uuid4()))
-        )
-        for logical_date in config.slice_window.iter_slices(now)
+        build_storage_target(config, logical_slice)
+        for logical_slice in config.slice_window.iter_slices(now)
     )
 
 
-def build_requested_slice(
-    logical_slice: LogicalSlice,
-    partition_granularity: str,
-) -> RequestedSlice:
-    step = granularity_step(partition_granularity)
+def build_storage_target(config: IngestConfig, logical_slice: LogicalSlice) -> StorageTarget:
+    slice_with_run_id = logical_slice.with_run_id(str(uuid4()))
+    return StorageTarget(
+        logical_slice=slice_with_run_id,
+        partition_components=build_partition_components(
+            partition_fields=config.landing_layout.partition_fields,
+            workflow_name=config.workflow_name,
+            source_adapter=config.source_adapter,
+            logical_slice=slice_with_run_id,
+        ),
+        object_stem=f"run_id={slice_with_run_id.run_id}",
+    )
+
+
+def build_requested_slice(logical_slice: LogicalSlice) -> RequestedSlice:
     return RequestedSlice(
         logical_date=logical_slice.logical_date,
-        slice_start=logical_slice.logical_date,
-        slice_end=logical_slice.logical_date + step,
+        slice_start=logical_slice.slice_start,
+        slice_end=logical_slice.slice_end,
+        granularity=logical_slice.granularity,
     )
 
 
@@ -57,10 +69,7 @@ def build_fetch_plan(config: IngestConfig, now=None) -> FetchPlan:
     if config.mode == "live_hit":
         return FetchPlan(
             request=SliceFetchRequest(
-                slice=build_requested_slice(
-                    storage_targets[0].logical_slice,
-                    config.partition_granularity,
-                )
+                slice=build_requested_slice(storage_targets[0].logical_slice)
             ),
             storage_targets=storage_targets,
         )
@@ -68,7 +77,7 @@ def build_fetch_plan(config: IngestConfig, now=None) -> FetchPlan:
     return FetchPlan(
         request=MultiSliceFetchRequest(
             slices=tuple(
-                build_requested_slice(target.logical_slice, config.partition_granularity)
+                build_requested_slice(target.logical_slice)
                 for target in storage_targets
             )
         ),

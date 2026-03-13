@@ -8,7 +8,8 @@ import json
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from common.slices import GRANULARITY_ORDER, LogicalSlice
+from common.slices import LogicalSlice, parse_iso_datetime
+from common.storage_layout import build_partition_components, default_partition_fields, join_storage_path, trim_partition_fields_for_granularity
 from standardize.config import StandardizeConfig
 from standardize.parsers import build_parser
 
@@ -22,42 +23,51 @@ class StandardizedSliceResult:
 
 
 def build_landing_prefix(config: StandardizeConfig, logical_slice: LogicalSlice) -> str:
-    prefix = config.landing_input_prefix or "/".join(
-        [
-            f"workflow={config.workflow_name}",
-            f"adapter={config.source_adapter}",
-        ]
+    if config.landing_input_prefix is not None:
+        prefix = config.landing_input_prefix.rstrip("/")
+        return prefix + "/"
+
+    partition_fields = trim_partition_fields_for_granularity(
+        partition_fields=config.landing_layout.partition_fields,
+        slice_granularity=config.output_slice_granularity,
     )
+    partition_components = build_partition_components(
+        partition_fields=partition_fields,
+        workflow_name=config.workflow_name,
+        source_adapter=config.source_adapter,
+        logical_slice=logical_slice,
+    )
+    prefix = join_storage_path(
+        base_prefix=config.landing_layout.base_prefix,
+        partition_components=partition_components,
+        path_suffix=config.landing_layout.path_suffix,
+    )
+    return prefix.rstrip("/") + "/"
 
-    parts = [
-        prefix.rstrip("/"),
-        f"year={logical_slice.year}",
-        f"month={logical_slice.month}",
-        f"day={logical_slice.day}",
-    ]
 
-    if (
-        config.output_partition_granularity == "hour"
-        and config.landing_partition_granularity == "hour"
-    ):
-        parts.append(f"hour={logical_slice.hour}")
+def _is_manifest_key(key: str) -> bool:
+    return key.endswith(".manifest.json")
 
-    return "/".join(parts) + "/"
+
+def _is_within_output_slice(
+    logical_slice: LogicalSlice,
+    candidate_logical_date: datetime,
+) -> bool:
+    return logical_slice.contains(candidate_logical_date)
 
 
 def build_processed_key(config: StandardizeConfig, logical_slice: LogicalSlice) -> str:
-    parts = [
-        config.processed_output_prefix.strip("/"),
-        f"workflow={config.workflow_name}",
-        f"adapter={config.source_adapter}",
-        f"year={logical_slice.year}",
-        f"month={logical_slice.month}",
-        f"day={logical_slice.day}",
-    ]
-    if config.output_partition_granularity == "hour":
-        parts.append(f"hour={logical_slice.hour}")
-    parts.append(f"slice_id={logical_slice.run_id}.parquet")
-    return "/".join(parts)
+    partition_components = build_partition_components(
+        partition_fields=default_partition_fields(config.output_slice_granularity),
+        workflow_name=config.workflow_name,
+        source_adapter=config.source_adapter,
+        logical_slice=logical_slice,
+    )
+    return join_storage_path(
+        base_prefix=config.processed_output_prefix,
+        partition_components=partition_components,
+        object_name=f"slice_id={logical_slice.run_id}.parquet",
+    )
 
 
 def _normalize_value(value):
@@ -86,7 +96,10 @@ def _list_landing_keys(config: StandardizeConfig, logical_slice: LogicalSlice, s
     keys: list[str] = []
     for page in paginator.paginate(Bucket=config.landing_bucket_name, Prefix=prefix):
         for item in page.get("Contents", []):
-            keys.append(item["Key"])
+            key = item["Key"]
+            if _is_manifest_key(key):
+                continue
+            keys.append(key)
     return keys
 
 
@@ -110,15 +123,24 @@ def run_standardize(config: StandardizeConfig, s3_client) -> list[StandardizedSl
             continue
 
         rows: list[dict] = []
+        matched_landing_key_count = 0
         for key in landing_keys:
             response = s3_client.get_object(Bucket=config.landing_bucket_name, Key=key)
+            metadata = response.get("Metadata", {})
+            raw_logical_date = metadata.get("logical_date")
+            if raw_logical_date is not None and not _is_within_output_slice(
+                logical_slice=logical_slice,
+                candidate_logical_date=parse_iso_datetime(raw_logical_date),
+            ):
+                continue
+            matched_landing_key_count += 1
             body = response["Body"].read()
             rows.extend(
                 parser.parse_landing_object(
                     logical_slice=logical_slice,
                     key=key,
                     payload=body,
-                    metadata=response.get("Metadata", {}),
+                    metadata=metadata,
                 )
             )
 
@@ -129,7 +151,7 @@ def run_standardize(config: StandardizeConfig, s3_client) -> list[StandardizedSl
                         "event": "standardize_slice_skipped",
                         "reason": "no_rows_parsed",
                         "logical_date": logical_slice.logical_date.isoformat(),
-                        "landing_object_count": len(landing_keys),
+                        "landing_object_count": matched_landing_key_count,
                     }
                 )
             )
@@ -141,8 +163,8 @@ def run_standardize(config: StandardizeConfig, s3_client) -> list[StandardizedSl
             "workflow_name": config.workflow_name,
             "source_adapter": config.source_adapter,
             "logical_date": logical_slice.logical_date.astimezone(UTC).isoformat(),
-            "output_partition_granularity": config.output_partition_granularity,
-            "landing_object_count": str(len(landing_keys)),
+            "output_slice_granularity": config.output_slice_granularity,
+            "landing_object_count": str(matched_landing_key_count),
             "row_count": str(len(rows)),
             "standardized_at": datetime.now(UTC).isoformat(),
         }
@@ -161,7 +183,7 @@ def run_standardize(config: StandardizeConfig, s3_client) -> list[StandardizedSl
                     "bucket": config.processed_bucket_name,
                     "key": processed_key,
                     "logical_date": logical_slice.logical_date.isoformat(),
-                    "landing_object_count": len(landing_keys),
+                    "landing_object_count": matched_landing_key_count,
                     "row_count": len(rows),
                 }
             )
@@ -171,7 +193,7 @@ def run_standardize(config: StandardizeConfig, s3_client) -> list[StandardizedSl
                 bucket_name=config.processed_bucket_name,
                 key=processed_key,
                 row_count=len(rows),
-                source_object_count=len(landing_keys),
+                source_object_count=matched_landing_key_count,
             )
         )
 

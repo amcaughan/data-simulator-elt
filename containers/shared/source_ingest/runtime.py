@@ -6,8 +6,17 @@ import json
 import mimetypes
 
 from common.slices import LogicalSlice
+from common.storage_layout import join_storage_path
 from source_ingest.adapters import build_adapter
-from source_ingest.adapters.base import FetchOutput, FetchResult
+from source_ingest.adapters.base import (
+    FetchOutput,
+    FetchResult,
+    LiveFetchRequest,
+    MultiSliceFetchRequest,
+    RequestedSlice,
+    SliceFetchRequest,
+    SourceFetchRequest,
+)
 from source_ingest.config import IngestConfig
 from source_ingest.planning import FetchPlan, StorageTarget, build_fetch_plan
 
@@ -16,6 +25,7 @@ from source_ingest.planning import FetchPlan, StorageTarget, build_fetch_plan
 class LandingObject:
     bucket_name: str
     key: str
+    manifest_key: str
     body: bytes
     content_type: str
     metadata: dict[str, str]
@@ -31,22 +41,22 @@ def build_object_suffix(content_type: str) -> str:
     return ""
 
 
-def build_landing_key(
-    config: IngestConfig,
-    logical_slice: LogicalSlice,
-    content_type: str,
-) -> str:
-    parts = [
-        f"workflow={config.workflow_name}",
-        f"adapter={config.source_adapter}",
-        f"year={logical_slice.year}",
-        f"month={logical_slice.month}",
-        f"day={logical_slice.day}",
-    ]
-    if config.partition_granularity == "hour":
-        parts.append(f"hour={logical_slice.hour}")
-    parts.append(f"run_id={logical_slice.run_id}{build_object_suffix(content_type)}")
-    return "/".join(parts)
+def build_landing_key(config: IngestConfig, storage_target: StorageTarget, content_type: str) -> str:
+    return join_storage_path(
+        base_prefix=config.landing_layout.base_prefix,
+        partition_components=storage_target.partition_components,
+        path_suffix=config.landing_layout.path_suffix,
+        object_name=f"{storage_target.object_stem}{build_object_suffix(content_type)}",
+    )
+
+
+def build_manifest_key(config: IngestConfig, storage_target: StorageTarget) -> str:
+    return join_storage_path(
+        base_prefix=config.landing_layout.base_prefix,
+        partition_components=storage_target.partition_components,
+        path_suffix=config.landing_layout.path_suffix,
+        object_name=f"{storage_target.object_stem}.manifest.json",
+    )
 
 
 def build_landing_metadata(
@@ -61,7 +71,7 @@ def build_landing_metadata(
         "logical_date": logical_slice.logical_date.isoformat(),
         "ingested_at": ingested_at.astimezone(UTC).isoformat(),
         "mode": config.mode,
-        "partition_granularity": config.partition_granularity,
+        "slice_granularity": config.slice_granularity,
     }
     metadata.update(adapter_metadata)
     return metadata
@@ -74,13 +84,16 @@ class LandingWriter:
 
     def write(
         self,
-        logical_slice: LogicalSlice,
+        request: SourceFetchRequest,
+        storage_target: StorageTarget,
         body: bytes,
         content_type: str,
         adapter_metadata: dict[str, str],
     ) -> LandingObject:
         ingested_at = datetime.now(UTC)
-        key = build_landing_key(self.config, logical_slice, content_type)
+        logical_slice = storage_target.logical_slice
+        key = build_landing_key(self.config, storage_target, content_type)
+        manifest_key = build_manifest_key(self.config, storage_target)
         metadata = build_landing_metadata(
             config=self.config,
             logical_slice=logical_slice,
@@ -94,13 +107,110 @@ class LandingWriter:
             ContentType=content_type,
             Metadata=metadata,
         )
+        manifest_body = build_manifest_body(
+            config=self.config,
+            request=request,
+            storage_target=storage_target,
+            payload_key=key,
+            manifest_key=manifest_key,
+            content_type=content_type,
+            ingested_at=ingested_at,
+            adapter_metadata=adapter_metadata,
+        )
+        self.s3_client.put_object(
+            Bucket=self.config.landing_bucket_name,
+            Key=manifest_key,
+            Body=manifest_body,
+            ContentType="application/json",
+        )
         return LandingObject(
             bucket_name=self.config.landing_bucket_name,
             key=key,
+            manifest_key=manifest_key,
             body=body,
             content_type=content_type,
             metadata=metadata,
         )
+
+
+def serialize_requested_slice(requested_slice: RequestedSlice) -> dict[str, str]:
+    return {
+        "logical_date": requested_slice.logical_date.isoformat(),
+        "slice_start": requested_slice.slice_start.isoformat(),
+        "slice_end": requested_slice.slice_end.isoformat(),
+        "granularity": requested_slice.granularity,
+    }
+
+
+def serialize_request(
+    request: SourceFetchRequest,
+    matched_logical_date: datetime,
+) -> dict[str, object]:
+    if isinstance(request, LiveFetchRequest):
+        return {"kind": request.kind}
+    if isinstance(request, SliceFetchRequest):
+        return {
+            "kind": request.kind,
+            "slice": serialize_requested_slice(request.slice),
+        }
+    if isinstance(request, MultiSliceFetchRequest):
+        requested_slices = request.slices
+        matched_slice = next(
+            requested_slice
+            for requested_slice in requested_slices
+            if requested_slice.logical_date == matched_logical_date
+        )
+        return {
+            "kind": request.kind,
+            "slice_count": len(requested_slices),
+            "first_slice": serialize_requested_slice(requested_slices[0]),
+            "last_slice": serialize_requested_slice(requested_slices[-1]),
+            "matched_slice": serialize_requested_slice(matched_slice),
+        }
+    raise TypeError(f"Unsupported request type: {type(request)!r}")
+
+
+def build_manifest_body(
+    config: IngestConfig,
+    request: SourceFetchRequest,
+    storage_target: StorageTarget,
+    payload_key: str,
+    manifest_key: str,
+    content_type: str,
+    ingested_at: datetime,
+    adapter_metadata: dict[str, str],
+) -> bytes:
+    logical_slice = storage_target.logical_slice
+    manifest = {
+        "schema_version": "1",
+        "workflow_name": config.workflow_name,
+        "source_adapter": config.source_adapter,
+        "ingested_at": ingested_at.astimezone(UTC).isoformat(),
+        "request": serialize_request(request, logical_slice.logical_date),
+        "storage": {
+            "bucket_name": config.landing_bucket_name,
+            "payload_key": payload_key,
+            "manifest_key": manifest_key,
+            "base_prefix": config.landing_layout.base_prefix,
+            "partition_fields": list(config.landing_layout.partition_fields),
+            "path_suffix": list(config.landing_layout.path_suffix),
+            "partition_components": [
+                {"key": component.key, "value": component.value}
+                for component in storage_target.partition_components
+            ],
+            "logical_date": logical_slice.logical_date.isoformat(),
+            "slice_start": logical_slice.slice_start.isoformat(),
+            "slice_end": logical_slice.slice_end.isoformat(),
+            "slice_granularity": logical_slice.granularity,
+            "run_id": logical_slice.run_id,
+        },
+        "payload": {
+            "content_type": content_type,
+            "metadata": adapter_metadata,
+        },
+        "adapter_config": config.source_adapter_config,
+    }
+    return json.dumps(manifest, sort_keys=True).encode("utf-8")
 
 
 def map_fetch_outputs(
@@ -160,7 +270,8 @@ def run_source_ingest(config: IngestConfig, s3_client) -> list[LandingObject]:
     for storage_target, output in map_fetch_outputs(plan, fetched):
         logical_slice = storage_target.logical_slice
         landing_object = writer.write(
-            logical_slice=logical_slice,
+            request=plan.request,
+            storage_target=storage_target,
             body=output.body,
             content_type=output.content_type,
             adapter_metadata=output.metadata,
@@ -171,6 +282,7 @@ def run_source_ingest(config: IngestConfig, s3_client) -> list[LandingObject]:
                     "event": "landing_object_written",
                     "bucket": landing_object.bucket_name,
                     "key": landing_object.key,
+                    "manifest_key": landing_object.manifest_key,
                     "logical_date": logical_slice.logical_date.isoformat(),
                     "request_kind": plan.request.kind,
                     "content_type": output.content_type,

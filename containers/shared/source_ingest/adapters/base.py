@@ -14,6 +14,7 @@ class RequestedSlice:
     logical_date: datetime
     slice_start: datetime
     slice_end: datetime
+    granularity: str
 
 
 @dataclass(frozen=True)

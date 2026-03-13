@@ -6,6 +6,12 @@ import os
 from typing import Any
 
 from common.slices import SliceWindowConfig
+from common.storage_layout import (
+    StorageLayoutConfig,
+    default_partition_fields,
+    validate_path_segments,
+    validate_partition_fields,
+)
 
 
 def _require_env(name: str) -> str:
@@ -34,6 +40,18 @@ def _json_env(name: str, default: str = "{}") -> dict[str, Any]:
     return parsed
 
 
+def _json_list_env(name: str, default: list[str]) -> tuple[str, ...]:
+    raw_value = os.environ.get(name, json.dumps(default))
+    try:
+        parsed = json.loads(raw_value)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"{name} must be valid JSON") from exc
+
+    if not isinstance(parsed, list) or not all(isinstance(item, str) for item in parsed):
+        raise ValueError(f"{name} must decode to a JSON array of strings")
+    return tuple(parsed)
+
+
 @dataclass(frozen=True)
 class IngestConfig:
     workflow_name: str
@@ -41,6 +59,7 @@ class IngestConfig:
     landing_bucket_name: str
     aws_region: str
     slice_window: SliceWindowConfig
+    landing_layout: StorageLayoutConfig
     source_adapter_config: dict[str, Any]
 
     @classmethod
@@ -51,12 +70,24 @@ class IngestConfig:
             landing_bucket_name=_require_env("LANDING_BUCKET_NAME"),
             aws_region=_require_env("AWS_REGION"),
             slice_window=SliceWindowConfig(
-                partition_granularity=os.environ.get("PARTITION_GRANULARITY", "day"),
+                slice_granularity=os.environ.get("SLICE_GRANULARITY", "day"),
                 mode=os.environ.get("MODE", "live_hit"),
                 logical_date=os.environ.get("LOGICAL_DATE"),
                 start_at=os.environ.get("START_AT"),
                 end_at=os.environ.get("END_AT"),
-                backfill_days=_optional_int("BACKFILL_DAYS"),
+                backfill_count=_optional_int("BACKFILL_COUNT"),
+            ),
+            landing_layout=StorageLayoutConfig(
+                base_prefix=os.environ.get("LANDING_BASE_PREFIX"),
+                partition_fields=_json_list_env(
+                    "LANDING_PARTITION_FIELDS_JSON",
+                    list(
+                        default_partition_fields(
+                            os.environ.get("SLICE_GRANULARITY", "day")
+                        )
+                    ),
+                ),
+                path_suffix=_json_list_env("LANDING_PATH_SUFFIX_JSON", []),
             ),
             source_adapter_config=_json_env("SOURCE_ADAPTER_CONFIG_JSON"),
         )
@@ -65,10 +96,12 @@ class IngestConfig:
 
     def validate(self) -> None:
         self.slice_window.validate()
+        validate_partition_fields(self.landing_layout.partition_fields)
+        validate_path_segments(self.landing_layout.path_suffix)
 
     @property
-    def partition_granularity(self) -> str:
-        return self.slice_window.partition_granularity
+    def slice_granularity(self) -> str:
+        return self.slice_window.slice_granularity
 
     @property
     def mode(self) -> str:
