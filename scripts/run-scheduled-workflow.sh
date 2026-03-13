@@ -33,6 +33,8 @@ Options:
   --manual-request-json JSON   Manual request payload for source-ingest manual mode.
   --manual-request-file PATH   Read manual request payload from a file.
   --manual-storage-prefix P    Manual storage prefix for source-ingest manual mode.
+  --manual-input-prefix P      Manual landing input prefix for standardize manual mode.
+  --manual-output-prefix P     Manual processed output prefix for standardize manual mode.
   --manual-object-name NAME    Optional manual object name override.
   --landing-base-prefix PATH   Override LANDING_BASE_PREFIX for the run.
   --landing-partitions JSON    Override LANDING_PARTITION_FIELDS_JSON for the run.
@@ -85,6 +87,8 @@ STANDARDIZE_STRATEGY_CONFIG_FILE=""
 MANUAL_REQUEST_JSON=""
 MANUAL_REQUEST_FILE=""
 MANUAL_STORAGE_PREFIX=""
+MANUAL_INPUT_PREFIX=""
+MANUAL_OUTPUT_PREFIX=""
 MANUAL_OBJECT_NAME=""
 LANDING_BASE_PREFIX=""
 LANDING_PARTITIONS_JSON=""
@@ -175,6 +179,14 @@ while [[ $# -gt 0 ]]; do
       ;;
     --manual-storage-prefix)
       MANUAL_STORAGE_PREFIX="${2:-}"
+      shift 2
+      ;;
+    --manual-input-prefix)
+      MANUAL_INPUT_PREFIX="${2:-}"
+      shift 2
+      ;;
+    --manual-output-prefix)
+      MANUAL_OUTPUT_PREFIX="${2:-}"
       shift 2
       ;;
     --manual-object-name)
@@ -274,8 +286,8 @@ case "$PLANNING_MODE" in
     ;;
 esac
 
-if [[ "$PLANNING_MODE" == "manual" && "$STEP" != "source-ingest" ]]; then
-  echo "--planning-mode manual only supports --step source-ingest" >&2
+if [[ "$PLANNING_MODE" == "manual" && "$STEP" == "both" ]]; then
+  echo "--planning-mode manual requires --step source-ingest or --step standardize" >&2
   exit 1
 fi
 
@@ -354,6 +366,8 @@ run_step() {
     STANDARDIZE_STRATEGY_CONFIG_JSON="$STANDARDIZE_STRATEGY_CONFIG_JSON" \
     MANUAL_REQUEST_JSON="$MANUAL_REQUEST_JSON" \
     MANUAL_STORAGE_PREFIX="$MANUAL_STORAGE_PREFIX" \
+    MANUAL_INPUT_PREFIX="$MANUAL_INPUT_PREFIX" \
+    MANUAL_OUTPUT_PREFIX="$MANUAL_OUTPUT_PREFIX" \
     MANUAL_OBJECT_NAME="$MANUAL_OBJECT_NAME" \
     LANDING_BASE_PREFIX="$LANDING_BASE_PREFIX" \
     LANDING_PARTITIONS_JSON="$LANDING_PARTITIONS_JSON" \
@@ -389,17 +403,22 @@ planning_mode = os.environ.get("PLANNING_MODE", "temporal")
 
 env = []
 
-if step_name == "source-ingest":
-    env.append({"name": "PLANNING_MODE", "value": planning_mode})
+env.append({"name": "PLANNING_MODE", "value": planning_mode})
 
 if planning_mode == "manual":
-    manual_request_json = os.environ.get("MANUAL_REQUEST_JSON")
-    if manual_request_json:
-        env.append({"name": "MANUAL_REQUEST_JSON", "value": manual_request_json})
-    for key in ("MANUAL_STORAGE_PREFIX", "MANUAL_OBJECT_NAME"):
-        value = os.environ.get(key)
-        if value:
-            env.append({"name": key, "value": value})
+    if step_name == "source-ingest":
+        manual_request_json = os.environ.get("MANUAL_REQUEST_JSON")
+        if manual_request_json:
+            env.append({"name": "MANUAL_REQUEST_JSON", "value": manual_request_json})
+        for key in ("MANUAL_STORAGE_PREFIX", "MANUAL_OBJECT_NAME"):
+            value = os.environ.get(key)
+            if value:
+                env.append({"name": key, "value": value})
+    elif step_name == "standardize":
+        for key in ("MANUAL_INPUT_PREFIX", "MANUAL_OUTPUT_PREFIX", "MANUAL_OBJECT_NAME"):
+            value = os.environ.get(key)
+            if value:
+                env.append({"name": key, "value": value})
 else:
     env.append({"name": "SLICE_SELECTOR_MODE", "value": os.environ["SLICE_SELECTOR_MODE"]})
 

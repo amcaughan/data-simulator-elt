@@ -51,6 +51,25 @@ class SimulatorApiStandardizeStrategy(StandardizeStrategy):
         output_slice: LogicalSlice,
         input_objects: list[StandardizeInputObject],
     ) -> StandardizeResult:
+        return self._process_input_objects(
+            input_objects=input_objects,
+            output_slice=output_slice,
+        )
+
+    def process_manual(
+        self,
+        input_objects: list[StandardizeInputObject],
+    ) -> StandardizeResult:
+        return self._process_input_objects(
+            input_objects=input_objects,
+            output_slice=None,
+        )
+
+    def _process_input_objects(
+        self,
+        input_objects: list[StandardizeInputObject],
+        output_slice: LogicalSlice | None,
+    ) -> StandardizeResult:
         rows: list[dict[str, Any]] = []
 
         for input_object in input_objects:
@@ -78,7 +97,7 @@ class SimulatorApiStandardizeStrategy(StandardizeStrategy):
 
     def _parse_input_object(
         self,
-        output_slice: LogicalSlice,
+        output_slice: LogicalSlice | None,
         input_object: StandardizeInputObject,
     ) -> list[dict]:
         parsed = json.loads(input_object.payload.decode("utf-8"))
@@ -108,7 +127,7 @@ class SimulatorApiStandardizeStrategy(StandardizeStrategy):
             )
             flattened["_logical_date"] = input_object.metadata.get(
                 "logical_date",
-                output_slice.logical_date.isoformat(),
+                None if output_slice is None else output_slice.logical_date.isoformat(),
             )
             flattened["_ingested_at"] = input_object.metadata.get("ingested_at")
             flattened["_schema_version"] = schema_version

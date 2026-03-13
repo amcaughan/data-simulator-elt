@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 import io
 import json
+from uuid import uuid4
 
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -26,6 +27,7 @@ from standardize.strategies.base import (
 class StandardizedSliceResult:
     bucket_name: str
     key: str
+    manifest_key: str
     row_count: int
     source_object_count: int
 
@@ -49,6 +51,10 @@ def build_landing_prefix(config: StandardizeConfig, logical_slice: LogicalSlice)
         path_suffix=config.landing_layout.path_suffix,
     )
     return prefix.rstrip("/") + "/"
+
+
+def build_manual_landing_prefix(config: StandardizeConfig) -> str:
+    return config.manual.input_prefix.rstrip("/") + "/"
 
 
 def _is_manifest_key(key: str) -> bool:
@@ -76,6 +82,41 @@ def build_processed_key(
         partition_components=partition_components,
         path_suffix=config.processed_layout.path_suffix,
         object_name=object_name,
+    )
+
+
+def build_manual_processed_key(
+    config: StandardizeConfig,
+    object_name: str,
+) -> str:
+    output_prefix = config.manual.output_prefix
+    if output_prefix is None:
+        return object_name
+    return join_storage_path(
+        base_prefix=output_prefix,
+        object_name=object_name,
+    )
+
+
+def build_processed_manifest_key(
+    config: StandardizeConfig,
+    logical_slice: LogicalSlice,
+    object_name: str,
+) -> str:
+    return build_processed_key(
+        config=config,
+        logical_slice=logical_slice,
+        object_name=f"{object_name}.manifest.json",
+    )
+
+
+def build_manual_processed_manifest_key(
+    config: StandardizeConfig,
+    object_name: str,
+) -> str:
+    return build_manual_processed_key(
+        config=config,
+        object_name=f"{object_name}.manifest.json",
     )
 
 
@@ -116,6 +157,22 @@ def _list_landing_keys(
     return keys
 
 
+def _list_manual_landing_keys(
+    config: StandardizeConfig,
+    s3_client,
+) -> list[str]:
+    prefix = build_manual_landing_prefix(config)
+    paginator = s3_client.get_paginator("list_objects_v2")
+    keys: list[str] = []
+    for page in paginator.paginate(Bucket=config.landing_bucket_name, Prefix=prefix):
+        for item in page.get("Contents", []):
+            key = item["Key"]
+            if _is_manifest_key(key):
+                continue
+            keys.append(key)
+    return keys
+
+
 def _build_standardize_inputs(
     config: StandardizeConfig,
     logical_slice: LogicalSlice,
@@ -142,6 +199,23 @@ def _build_standardize_inputs(
     return input_objects
 
 
+def _build_manual_standardize_inputs(
+    config: StandardizeConfig,
+    s3_client,
+) -> list[StandardizeInputObject]:
+    input_objects: list[StandardizeInputObject] = []
+    for key in _list_manual_landing_keys(config, s3_client):
+        response = s3_client.get_object(Bucket=config.landing_bucket_name, Key=key)
+        input_objects.append(
+            StandardizeInputObject(
+                key=key,
+                payload=response["Body"].read(),
+                metadata=response.get("Metadata", {}),
+            )
+        )
+    return input_objects
+
+
 def _resolve_output_object_name(
     logical_slice: LogicalSlice,
     output: StandardizeOutput,
@@ -155,9 +229,227 @@ def _resolve_output_object_name(
     return f"slice_id={logical_slice.run_id}.part={output_index:02d}.parquet"
 
 
+def _resolve_manual_output_object_name(
+    config: StandardizeConfig,
+    output: StandardizeOutput,
+    output_index: int,
+    output_count: int,
+    run_id: str,
+) -> str:
+    if output_count > 1 and config.manual.object_name is not None:
+        raise ValueError(
+            "MANUAL_OBJECT_NAME may only be used when the standardize strategy returns "
+            "exactly one output"
+        )
+    if config.manual.object_name is not None:
+        return config.manual.object_name
+    if output.suggested_object_name:
+        return output.suggested_object_name
+    if output_count == 1:
+        return f"run_id={run_id}.parquet"
+    return f"run_id={run_id}.part={output_index:02d}.parquet"
+
+
+def build_manifest_body(
+    config: StandardizeConfig,
+    input_objects: list[StandardizeInputObject],
+    output: StandardizeOutput,
+    payload_key: str,
+    manifest_key: str,
+    standardized_at: datetime,
+    row_count: int,
+    logical_slice: LogicalSlice | None = None,
+) -> bytes:
+    if logical_slice is None:
+        input_section: dict[str, object] = {
+            "mode": "manual",
+            "bucket_name": config.landing_bucket_name,
+            "input_prefix": build_manual_landing_prefix(config),
+            "object_count": len(input_objects),
+            "keys": [input_object.key for input_object in input_objects],
+        }
+        output_section: dict[str, object] = {
+            "mode": "manual",
+            "bucket_name": config.processed_bucket_name,
+            "payload_key": payload_key,
+            "manifest_key": manifest_key,
+            "output_prefix": config.manual.output_prefix,
+        }
+    else:
+        input_section = {
+            "mode": "temporal",
+            "bucket_name": config.landing_bucket_name,
+            "input_prefix": build_landing_prefix(config, logical_slice),
+            "object_count": len(input_objects),
+            "keys": [input_object.key for input_object in input_objects],
+            "slice_selector_mode": config.slice_window.selector_mode,
+            "landing_slice_granularity": config.landing_slice_granularity,
+            "logical_date": logical_slice.logical_date.isoformat(),
+            "slice_start": logical_slice.slice_start.isoformat(),
+            "slice_end": logical_slice.slice_end.isoformat(),
+            "slice_granularity": logical_slice.granularity,
+            "run_id": logical_slice.run_id,
+        }
+        output_section = {
+            "mode": "temporal",
+            "bucket_name": config.processed_bucket_name,
+            "payload_key": payload_key,
+            "manifest_key": manifest_key,
+            "base_prefix": config.processed_layout.base_prefix,
+            "partition_fields": list(config.processed_layout.partition_fields),
+            "path_suffix": list(config.processed_layout.path_suffix),
+        }
+
+    manifest = {
+        "schema_version": "1",
+        "workflow_name": config.workflow_name,
+        "standardize_strategy": config.standardize_strategy,
+        "planning_mode": config.planning_mode,
+        "standardized_at": standardized_at.astimezone(UTC).isoformat(),
+        "strategy_config": config.standardize_strategy_config,
+        "input": input_section,
+        "output": {
+            **output_section,
+            "row_count": row_count,
+            "metadata": output.metadata,
+            "suggested_object_name": output.suggested_object_name,
+            "content_type": "application/x-parquet",
+        },
+    }
+    return json.dumps(manifest, sort_keys=True).encode("utf-8")
+
+
+def _write_processed_object(
+    config: StandardizeConfig,
+    s3_client,
+    input_objects: list[StandardizeInputObject],
+    output: StandardizeOutput,
+    processed_key: str,
+    manifest_key: str,
+    metadata: dict[str, str],
+    row_count: int,
+    body: bytes,
+    logical_slice: LogicalSlice | None = None,
+) -> None:
+    standardized_at = datetime.now(UTC)
+    s3_client.put_object(
+        Bucket=config.processed_bucket_name,
+        Key=processed_key,
+        Body=body,
+        ContentType="application/octet-stream",
+        Metadata=metadata,
+    )
+    s3_client.put_object(
+        Bucket=config.processed_bucket_name,
+        Key=manifest_key,
+        Body=build_manifest_body(
+            config=config,
+            input_objects=input_objects,
+            output=output,
+            payload_key=processed_key,
+            manifest_key=manifest_key,
+            standardized_at=standardized_at,
+            row_count=row_count,
+            logical_slice=logical_slice,
+        ),
+        ContentType="application/json",
+    )
+
+
 def run_standardize(config: StandardizeConfig, s3_client) -> list[StandardizedSliceResult]:
     strategy = build_strategy(config)
     results: list[StandardizedSliceResult] = []
+
+    if config.is_manual:
+        input_objects = _build_manual_standardize_inputs(config, s3_client)
+        if not input_objects:
+            print(
+                json.dumps(
+                    {
+                        "event": "standardize_manual_skipped",
+                        "reason": "no_input_objects",
+                        "input_prefix": build_manual_landing_prefix(config),
+                    }
+                )
+            )
+            return results
+
+        strategy_result = strategy.process_manual(input_objects=input_objects)
+        if not strategy_result.outputs:
+            print(
+                json.dumps(
+                    {
+                        "event": "standardize_manual_skipped",
+                        "reason": "no_outputs_generated",
+                        "input_object_count": len(input_objects),
+                    }
+                )
+            )
+            return results
+
+        manual_run_id = str(uuid4())
+        for output_index, output in enumerate(strategy_result.outputs, start=1):
+            if not output.rows:
+                continue
+
+            object_name = _resolve_manual_output_object_name(
+                config=config,
+                output=output,
+                output_index=output_index,
+                output_count=len(strategy_result.outputs),
+                run_id=manual_run_id,
+            )
+            processed_key = build_manual_processed_key(
+                config=config,
+                object_name=object_name,
+            )
+            manifest_key = build_manual_processed_manifest_key(
+                config=config,
+                object_name=object_name,
+            )
+            body = _write_parquet_bytes(output.rows)
+            metadata = {
+                "workflow_name": config.workflow_name,
+                "standardize_strategy": config.standardize_strategy,
+                "planning_mode": config.planning_mode,
+                "input_object_count": str(len(input_objects)),
+                "row_count": str(len(output.rows)),
+                "standardized_at": datetime.now(UTC).isoformat(),
+                **output.metadata,
+            }
+            _write_processed_object(
+                config=config,
+                s3_client=s3_client,
+                input_objects=input_objects,
+                output=output,
+                processed_key=processed_key,
+                manifest_key=manifest_key,
+                metadata=metadata,
+                row_count=len(output.rows),
+                body=body,
+            )
+            print(
+                json.dumps(
+                    {
+                        "event": "processed_object_written",
+                        "mode": "manual",
+                        "bucket": config.processed_bucket_name,
+                        "key": processed_key,
+                        "input_object_count": len(input_objects),
+                        "row_count": len(output.rows),
+                    }
+                )
+            )
+            results.append(
+                StandardizedSliceResult(
+                    bucket_name=config.processed_bucket_name,
+                    key=processed_key,
+                    manifest_key=manifest_key,
+                    row_count=len(output.rows),
+                    source_object_count=len(input_objects),
+                )
+            )
+        return results
 
     for logical_slice in config.iter_slices():
         input_objects = _build_standardize_inputs(config, logical_slice, s3_client)
@@ -205,10 +497,16 @@ def run_standardize(config: StandardizeConfig, s3_client) -> list[StandardizedSl
                     output_count=len(strategy_result.outputs),
                 ),
             )
+            manifest_key = build_processed_manifest_key(
+                config=config,
+                logical_slice=logical_slice,
+                object_name=processed_key.rsplit("/", maxsplit=1)[-1],
+            )
             body = _write_parquet_bytes(output.rows)
             metadata = {
                 "workflow_name": config.workflow_name,
                 "standardize_strategy": config.standardize_strategy,
+                "planning_mode": config.planning_mode,
                 "logical_date": logical_slice.logical_date.astimezone(UTC).isoformat(),
                 "output_slice_granularity": config.output_slice_granularity,
                 "input_object_count": str(len(input_objects)),
@@ -216,12 +514,17 @@ def run_standardize(config: StandardizeConfig, s3_client) -> list[StandardizedSl
                 "standardized_at": datetime.now(UTC).isoformat(),
                 **output.metadata,
             }
-            s3_client.put_object(
-                Bucket=config.processed_bucket_name,
-                Key=processed_key,
-                Body=body,
-                ContentType="application/octet-stream",
-                Metadata=metadata,
+            _write_processed_object(
+                config=config,
+                s3_client=s3_client,
+                input_objects=input_objects,
+                output=output,
+                processed_key=processed_key,
+                manifest_key=manifest_key,
+                metadata=metadata,
+                row_count=len(output.rows),
+                body=body,
+                logical_slice=logical_slice,
             )
 
             print(
@@ -240,6 +543,7 @@ def run_standardize(config: StandardizeConfig, s3_client) -> list[StandardizedSl
                 StandardizedSliceResult(
                     bucket_name=config.processed_bucket_name,
                     key=processed_key,
+                    manifest_key=manifest_key,
                     row_count=len(output.rows),
                     source_object_count=len(input_objects),
                 )

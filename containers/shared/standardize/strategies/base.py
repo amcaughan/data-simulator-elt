@@ -67,3 +67,10 @@ class StandardizeStrategy(ABC):
         input_objects: list[StandardizeInputObject],
     ) -> StandardizeResult:
         raise NotImplementedError
+
+    @abstractmethod
+    def process_manual(
+        self,
+        input_objects: list[StandardizeInputObject],
+    ) -> StandardizeResult:
+        raise NotImplementedError
