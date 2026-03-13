@@ -151,7 +151,7 @@ class StandardizeConfig:
             )
         if (
             GRANULARITY_ORDER[self.output_slice_granularity]
-            > GRANULARITY_ORDER[self.landing_slice_granularity]
+            < GRANULARITY_ORDER[self.landing_slice_granularity]
         ):
             raise ValueError(
                 "OUTPUT_SLICE_GRANULARITY cannot be finer than LANDING_SLICE_GRANULARITY"

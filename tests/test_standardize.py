@@ -107,7 +107,11 @@ class StandardizeTests(unittest.TestCase):
         config = self.build_config()
         logical_slice = config.iter_slices()[0]
 
-        key = build_processed_key(config, logical_slice)
+        key = build_processed_key(
+            config,
+            logical_slice,
+            object_name=f"slice_id={logical_slice.run_id}.parquet",
+        )
 
         self.assertTrue(
             key.startswith(
@@ -115,6 +119,14 @@ class StandardizeTests(unittest.TestCase):
             )
         )
         self.assertTrue(key.endswith(".parquet"))
+
+    def test_output_granularity_may_be_coarser_than_landing(self):
+        config = self.build_config(
+            landing_slice_granularity="hour",
+            output_slice_granularity="day",
+        )
+
+        config.validate()
 
     def test_run_standardize_aggregates_landing_rows(self):
         import json
