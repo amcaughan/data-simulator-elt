@@ -126,11 +126,20 @@ or:
 
 ```bash
 ./scripts/run-scheduled-workflow.sh \
-  --workflow batch-file-delivery \
-  --mode backfill \
-  --backfill-days 7 \
+  --workflow polling-generated-events \
+  --step source-ingest \
+  --planning-mode temporal \
+  --slice-selector-mode range \
+  --slice-range-start-at 2026-03-01T00:00:00Z \
+  --slice-range-end-at 2026-03-03T23:59:59Z \
   --wait
 ```
+
+The helper now uses selector-based temporal planning:
+- `current` for the slice containing now
+- `pinned` for one explicit slice
+- `range` for all slices overlapping an explicit time window
+- `relative` for a fixed number of slices forward or backward from an anchor
 
 Manual ECS tasks started by this helper are tagged for daily janitor cleanup as a
 safety net. They should still stop on their own when the container command

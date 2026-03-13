@@ -18,8 +18,10 @@ Manual examples:
 ```bash
 ./scripts/run-scheduled-workflow.sh \
   --workflow batch-file-delivery \
-  --mode backfill \
-  --start-at 2026-03-01 \
-  --end-at 2026-03-07 \
+  --step source-ingest \
+  --planning-mode temporal \
+  --slice-selector-mode range \
+  --slice-range-start-at 2026-03-01T00:00:00Z \
+  --slice-range-end-at 2026-03-07T23:59:59Z \
   --wait
 ```

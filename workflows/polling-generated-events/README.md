@@ -18,7 +18,13 @@ Manual examples:
 ```bash
 ./scripts/run-scheduled-workflow.sh \
   --workflow polling-generated-events \
-  --mode backfill \
-  --backfill-days 7 \
+  --step source-ingest \
+  --planning-mode temporal \
+  --slice-selector-mode range \
+  --slice-range-start-at 2026-03-01T00:00:00Z \
+  --slice-range-end-at 2026-03-03T23:59:59Z \
   --wait
 ```
+
+This workflow currently uses `slice_granularity = "hour"`, so a three-day sample
+backfill means three days of hourly slices rather than three daily pulls.
