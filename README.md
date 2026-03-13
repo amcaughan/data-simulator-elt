@@ -33,7 +33,7 @@ Each workflow should be understandable in isolation:
 The intended data movement is:
 - source ingest writes exact payloads into `landing`
 - standardization jobs normalize and move data into `processed/raw`
-- dbt builds consumer-facing models from `processed`
+- dbt builds consumer-facing models from `processed` into `marts`
 
 The shared core is expected to own:
 - ECS cluster
@@ -78,7 +78,7 @@ This repository is intentionally biased toward easy teardown.
 
 - workflow and Athena-results buckets use force destroy
 - ECR repositories use force delete
-- the shared analytics database is managed through Athena with force destroy
+- the shared marts database is managed through Athena with force destroy
 
 The goal is to make environment cleanup easy when the data itself is disposable.
 

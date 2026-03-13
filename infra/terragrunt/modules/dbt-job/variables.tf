@@ -20,7 +20,7 @@ variable "processed_bucket_name" {
   type = string
 }
 
-variable "analytics_bucket_name" {
+variable "marts_bucket_name" {
   type = string
 }
 

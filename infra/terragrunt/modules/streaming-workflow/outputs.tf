@@ -10,8 +10,8 @@ output "processed_bucket_name" {
   value = module.storage.processed_bucket_name
 }
 
-output "analytics_bucket_name" {
-  value = module.storage.analytics_bucket_name
+output "marts_bucket_name" {
+  value = module.storage.marts_bucket_name
 }
 
 output "stream_emitter_job_name" {

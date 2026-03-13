@@ -47,8 +47,8 @@ data "aws_iam_policy_document" "task_policy" {
     resources = [
       "arn:aws:s3:::${var.processed_bucket_name}",
       "arn:aws:s3:::${var.processed_bucket_name}/*",
-      "arn:aws:s3:::${var.analytics_bucket_name}",
-      "arn:aws:s3:::${var.analytics_bucket_name}/*",
+      "arn:aws:s3:::${var.marts_bucket_name}",
+      "arn:aws:s3:::${var.marts_bucket_name}/*",
     ]
   }
 
@@ -126,8 +126,8 @@ resource "aws_ecs_task_definition" "this" {
           value = var.processed_bucket_name
         },
         {
-          name  = "ANALYTICS_BUCKET_NAME"
-          value = var.analytics_bucket_name
+          name  = "MARTS_BUCKET_NAME"
+          value = var.marts_bucket_name
         },
         {
           name  = "GLUE_DATABASE_NAME"

@@ -148,7 +148,7 @@ module "dbt" {
   project_name               = var.project_name
   workflow_name              = var.workflow_name
   processed_bucket_name      = module.storage.processed_bucket_name
-  analytics_bucket_name      = module.storage.analytics_bucket_name
+  marts_bucket_name          = module.storage.marts_bucket_name
   glue_database_name         = var.glue_database_name
   athena_workgroup_name      = var.athena_workgroup_name
   container_image            = var.dbt_container_image

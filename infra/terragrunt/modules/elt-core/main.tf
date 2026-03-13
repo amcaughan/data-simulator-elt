@@ -15,7 +15,7 @@ data "aws_ssm_parameter" "network_shared_security_group_id" {
 
 locals {
   project_slug               = replace(var.project_name, "_", "-")
-  analytics_database_name    = replace("${var.project_name}_${var.environment}", "-", "_")
+  marts_database_name        = replace("${var.project_name}_${var.environment}", "-", "_")
   athena_results_bucket_name = "${local.project_slug}-${var.environment}-athena-results-${data.aws_caller_identity.current.account_id}-${data.aws_region.current.name}"
   ecr_repositories = {
     source_ingest  = "${local.project_slug}-${var.environment}-source-ingest"
@@ -104,7 +104,7 @@ resource "aws_athena_workgroup" "this" {
 }
 
 resource "aws_athena_database" "this" {
-  name          = local.analytics_database_name
+  name          = local.marts_database_name
   bucket        = aws_s3_bucket.athena_results.bucket
   force_destroy = var.force_destroy_stateful_resources
 }
