@@ -1,10 +1,11 @@
 Source-facing landing ingestion runtime.
 
 Responsibilities:
-- build explicit pull requests generically
+- plan storage targets for landing objects
+- build one adapter-facing fetch request from runtime intent
 - delegate source fetch behavior to a named adapter
-- write exact source payloads into the landing bucket
-- support different pull request types without baking source behavior into the runtime
+- map fetch outputs onto planned storage targets and write exact source payloads
+- support different request types without baking source behavior into the runtime
 
 Adapter-specific behavior lives under `adapters/`.
 
@@ -13,21 +14,25 @@ Each source adapter must implement the abstract base in `adapters/base.py`:
 - `from_ingest_config(...)`
 - `_fetch(...)`
 
-The runtime turns scheduler intent into explicit request types:
-- `LivePullRequest`
-- `HistoricalSlicePullRequest`
+Adapter-facing request types are:
+- `LiveFetchRequest`
+- `SliceFetchRequest`
+- `MultiSliceFetchRequest`
 
 Planning lives outside `IngestConfig`:
 - `config.py` holds validated runtime data
-- `planning.py` expands slice windows into logical slices and pull requests
+- `planning.py` expands runtime intent into a `FetchPlan`
+- a `FetchPlan` pairs one source fetch request with one or more storage targets
 
 `FetchResult` is intentionally narrow:
-- response bytes
-- content type
-- adapter-provided object metadata to persist with the landing object
+- one or more fetch outputs
+- response bytes and content type per output
+- adapter-provided metadata per output
+- optional logical-date labeling when one fetch returns multiple slice-specific outputs
 
 For `simulator_api`, the adapter is responsible for:
-- interpreting pull requests as preset generate requests
+- interpreting fetch requests as simulator generate calls
+- handling live, single-slice, and multi-slice requests
 - deriving deterministic seeds from workflow + preset + logical date when requested
 - signing requests with the task role and calling the private simulator API
 
