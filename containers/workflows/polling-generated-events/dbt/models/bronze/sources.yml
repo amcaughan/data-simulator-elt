@@ -1,0 +1,9 @@
+version: 2
+
+sources:
+  - name: bronze
+    description: Standardized bronze parquet slices produced by the polling workflow.
+    schema: "{{ target.schema }}"
+    tables:
+      - name: bronze_polling_generated_events
+        description: Bronze transaction benchmark rows loaded from processed/bronze.

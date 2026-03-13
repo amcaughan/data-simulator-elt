@@ -1,1 +1,1 @@
-# Add workflow-specific dbt dependencies here when the polling-generated-events dbt project is implemented.
+dbt-athena==1.10.0

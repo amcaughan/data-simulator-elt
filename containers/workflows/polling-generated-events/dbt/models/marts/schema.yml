@@ -1,0 +1,17 @@
+version: 2
+
+models:
+  - name: analytics_transactions
+    description: Analyst-facing row-level transactions without answer-key metadata.
+
+  - name: analytics_daily_transaction_metrics
+    description: Analyst-facing daily operational aggregates.
+
+  - name: model_evaluator_transaction_outcomes
+    description: Evaluation mart with answer-key outcomes joined to transaction rows.
+
+  - name: model_evaluator_daily_metrics
+    description: Evaluation mart with daily operational and answer-key metrics.
+
+  - name: management_daily_summary
+    description: Top-level daily summary for management-style reporting.

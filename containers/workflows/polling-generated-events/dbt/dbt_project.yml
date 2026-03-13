@@ -1,0 +1,40 @@
+name: polling_generated_events
+version: "1.0.0"
+config-version: 2
+
+profile: polling_generated_events
+
+model-paths:
+  - models
+
+macro-paths:
+  - macros
+
+clean-targets:
+  - target
+  - dbt_packages
+
+on-run-start:
+  - "{{ ensure_bronze_external_table() }}"
+
+models:
+  polling_generated_events:
+    +materialized: table
+    +format: parquet
+    +table_type: hive
+    silver:
+      +s3_data_dir: "s3://{{ env_var('PROCESSED_BUCKET_NAME') }}/silver"
+      +s3_data_naming: table
+    gold:
+      +s3_data_dir: "s3://{{ env_var('PROCESSED_BUCKET_NAME') }}/gold"
+      +s3_data_naming: table
+    marts:
+      analytics:
+        +s3_data_dir: "s3://{{ env_var('MARTS_BUCKET_NAME') }}/analytics"
+        +s3_data_naming: table
+      model_evaluator:
+        +s3_data_dir: "s3://{{ env_var('MARTS_BUCKET_NAME') }}/model_evaluator"
+        +s3_data_naming: table
+      management:
+        +s3_data_dir: "s3://{{ env_var('MARTS_BUCKET_NAME') }}/management"
+        +s3_data_naming: table

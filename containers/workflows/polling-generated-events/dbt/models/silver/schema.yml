@@ -1,0 +1,20 @@
+version: 2
+
+models:
+  - name: silver_transactions
+    description: Typed transaction rows without anomaly answer-key leakage.
+    columns:
+      - name: transaction_id
+        tests:
+          - not_null
+          - unique
+      - name: event_date
+        tests:
+          - not_null
+
+  - name: silver_transaction_answer_keys
+    description: Sparse answer-key records for anomalous transactions and labeled events.
+    columns:
+      - name: transaction_id
+        tests:
+          - not_null

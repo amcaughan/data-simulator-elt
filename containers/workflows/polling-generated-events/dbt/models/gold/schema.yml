@@ -1,0 +1,19 @@
+version: 2
+
+models:
+  - name: gold_transactions
+    description: Canonical row-level transaction table for downstream consumers.
+    columns:
+      - name: transaction_id
+        tests:
+          - not_null
+          - unique
+
+  - name: gold_transaction_answer_keys
+    description: Canonical answer-key table for model evaluation workloads.
+
+  - name: gold_daily_transaction_metrics
+    description: Daily operational metrics by core analytic dimensions.
+
+  - name: gold_daily_anomaly_metrics
+    description: Daily answer-key anomaly metrics by core analytic dimensions.
