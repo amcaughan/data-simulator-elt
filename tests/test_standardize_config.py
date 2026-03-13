@@ -33,7 +33,7 @@ class StandardizeConfigTests(unittest.TestCase):
                 ),
                 output_slice_granularity="day",
                 processed_layout=StorageLayoutConfig(
-                    base_prefix="raw",
+                    base_prefix="bronze",
                     partition_fields=("year", "month", "day"),
                 ),
                 landing_input_prefix=None,
@@ -61,7 +61,7 @@ class StandardizeConfigTests(unittest.TestCase):
             "temporal_config": None,
             "manual_config": ManualPlanningConfig(
                 input_prefix="client=acme/emergency",
-                output_prefix="raw/manual",
+                output_prefix="bronze/manual",
                 object_name="emergency.parquet",
             ),
         }
@@ -80,7 +80,7 @@ class StandardizeConfigTests(unittest.TestCase):
                 ),
                 output_slice_granularity="day",
                 processed_layout=StorageLayoutConfig(
-                    base_prefix="raw",
+                    base_prefix="bronze",
                     partition_fields=("year", "month", "day"),
                 ),
                 landing_input_prefix=None,
@@ -109,7 +109,7 @@ class StandardizeConfigTests(unittest.TestCase):
             temporal_config=None,
             manual_config=ManualPlanningConfig(
                 input_prefix="  ",
-                output_prefix="raw/manual",
+                output_prefix="bronze/manual",
                 object_name="emergency.parquet",
             ),
         )

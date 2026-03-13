@@ -59,7 +59,7 @@ variable "output_slice_granularity" {
 
 variable "processed_base_prefix" {
   type    = string
-  default = "raw"
+  default = "bronze"
 }
 
 variable "processed_partition_fields_json" {

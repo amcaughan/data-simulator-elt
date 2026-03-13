@@ -83,7 +83,7 @@ class StandardizeTests(unittest.TestCase):
                 ),
                 output_slice_granularity="day",
                 processed_layout=StorageLayoutConfig(
-                    base_prefix="raw",
+                    base_prefix="bronze",
                     partition_fields=("year", "month", "day"),
                 ),
                 landing_input_prefix=None,
@@ -111,7 +111,7 @@ class StandardizeTests(unittest.TestCase):
             "temporal_config": None,
             "manual_config": ManualPlanningConfig(
                 input_prefix="client=acme/project=finance/emergency",
-                output_prefix="raw/manual",
+                output_prefix="bronze/manual",
                 object_name="emergency.parquet",
             ),
         }
@@ -134,7 +134,7 @@ class StandardizeTests(unittest.TestCase):
             ),
         )
 
-    def test_processed_key_uses_raw_prefix(self):
+    def test_processed_key_uses_bronze_prefix(self):
         config = self.build_config()
         logical_slice = config.iter_slices()[0]
 
@@ -146,7 +146,7 @@ class StandardizeTests(unittest.TestCase):
 
         self.assertTrue(
             key.startswith(
-                "raw/year=2026/month=03/day=12/"
+                "bronze/year=2026/month=03/day=12/"
             )
         )
         self.assertTrue(key.endswith(".parquet"))
@@ -161,7 +161,7 @@ class StandardizeTests(unittest.TestCase):
                 ),
                 output_slice_granularity="day",
                 processed_layout=StorageLayoutConfig(
-                    base_prefix="raw",
+                    base_prefix="bronze",
                     partition_fields=("year", "month", "day"),
                 ),
                 landing_input_prefix=None,
@@ -232,7 +232,7 @@ class StandardizeTests(unittest.TestCase):
         )
         self.assertTrue(
             parquet_call["Key"].startswith(
-                "raw/year=2026/month=03/day=12/"
+                "bronze/year=2026/month=03/day=12/"
             )
         )
         self.assertEqual(parquet_call["Metadata"]["input_object_count"], "2")
@@ -256,7 +256,7 @@ class StandardizeTests(unittest.TestCase):
         )
         self.assertEqual(
             build_manual_processed_key(config, "emergency.parquet"),
-            "raw/manual/emergency.parquet",
+            "bronze/manual/emergency.parquet",
         )
         s3_client = FakeS3Client(
             objects={
@@ -288,10 +288,10 @@ class StandardizeTests(unittest.TestCase):
             results = run_standardize(config=config, s3_client=s3_client)
 
         self.assertEqual(len(results), 1)
-        self.assertEqual(results[0].key, "raw/manual/emergency.parquet")
+        self.assertEqual(results[0].key, "bronze/manual/emergency.parquet")
         self.assertEqual(
             results[0].manifest_key,
-            "raw/manual/emergency.parquet.manifest.json",
+            "bronze/manual/emergency.parquet.manifest.json",
         )
         put_calls = [call for call in s3_client.calls if call["Bucket"] == "processed-bucket"]
         self.assertEqual(len(put_calls), 2)
@@ -304,7 +304,7 @@ class StandardizeTests(unittest.TestCase):
             manifest["input"]["input_prefix"],
             "client=acme/project=finance/emergency/",
         )
-        self.assertEqual(manifest["output"]["output_prefix"], "raw/manual")
+        self.assertEqual(manifest["output"]["output_prefix"], "bronze/manual")
 
 
 if __name__ == "__main__":
