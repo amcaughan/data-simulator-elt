@@ -211,6 +211,7 @@ run_step() {
 import json
 import os
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 
 outputs = json.loads(Path(os.environ["OUTPUTS_FILE"]).read_text())
@@ -265,11 +266,17 @@ if step_name == "standardize":
         )
 
 started_by = f"manual-{os.environ['WORKFLOW_NAME']}-{step_name}"
+created_on = datetime.now(UTC).date().isoformat()
 payload = {
     "cluster": cluster_arn,
     "launchType": "FARGATE",
     "taskDefinition": task_definition,
     "startedBy": started_by,
+    "tags": [
+        {"key": "auto_cleanup", "value": "true"},
+        {"key": "cleanup_schedule", "value": "daily"},
+        {"key": "created_on", "value": created_on},
+    ],
     "networkConfiguration": {
         "awsvpcConfiguration": {
             "subnets": subnets,

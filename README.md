@@ -132,6 +132,10 @@ or:
   --wait
 ```
 
+Manual ECS tasks started by this helper are tagged for daily janitor cleanup as a
+safety net. They should still stop on their own when the container command
+finishes.
+
 ## License
 
 MIT
