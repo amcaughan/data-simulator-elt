@@ -22,6 +22,7 @@ from source_ingest.adapters.simulator_api import (
     derive_seed,
 )
 from source_ingest.config import IngestConfig
+from source_ingest.planning import build_logical_slices, build_pull_requests
 from source_ingest.runtime import build_landing_key, run_source_ingest
 
 
@@ -145,7 +146,9 @@ class SourceIngestTests(unittest.TestCase):
             )
         )
 
-        slices = config.iter_slices(now=datetime(2026, 3, 12, 10, 49, tzinfo=UTC))
+        slices = build_logical_slices(
+            config, now=datetime(2026, 3, 12, 10, 49, tzinfo=UTC)
+        )
 
         self.assertEqual(len(slices), 1)
         self.assertEqual(
@@ -166,7 +169,9 @@ class SourceIngestTests(unittest.TestCase):
             )
         )
 
-        slices = config.iter_slices(now=datetime(2026, 3, 12, 9, 30, tzinfo=UTC))
+        slices = build_logical_slices(
+            config, now=datetime(2026, 3, 12, 9, 30, tzinfo=UTC)
+        )
 
         self.assertEqual(
             [item.logical_date.isoformat() for item in slices],
@@ -191,8 +196,9 @@ class SourceIngestTests(unittest.TestCase):
             )
         )
 
-        pull_requests = config.iter_pull_requests(
-            now=datetime(2026, 3, 12, 10, 49, tzinfo=UTC)
+        pull_requests = build_pull_requests(
+            config,
+            now=datetime(2026, 3, 12, 10, 49, tzinfo=UTC),
         )
 
         self.assertEqual(len(pull_requests), 1)
@@ -217,8 +223,9 @@ class SourceIngestTests(unittest.TestCase):
             )
         )
 
-        pull_requests = config.iter_pull_requests(
-            now=datetime(2026, 3, 12, 9, 30, tzinfo=UTC)
+        pull_requests = build_pull_requests(
+            config,
+            now=datetime(2026, 3, 12, 9, 30, tzinfo=UTC),
         )
 
         self.assertEqual(len(pull_requests), 2)
@@ -234,8 +241,9 @@ class SourceIngestTests(unittest.TestCase):
         )
 
     def test_seed_derivation_is_deterministic(self):
-        logical_slice = self.build_config().iter_slices(
-            now=datetime(2026, 3, 12, 9, 30, tzinfo=UTC)
+        logical_slice = build_logical_slices(
+            self.build_config(),
+            now=datetime(2026, 3, 12, 9, 30, tzinfo=UTC),
         )[0]
 
         first = derive_seed(
@@ -309,7 +317,7 @@ class SourceIngestTests(unittest.TestCase):
                 backfill_days=None,
             )
         )
-        logical_slice = config.iter_slices()[0]
+        logical_slice = build_logical_slices(config)[0]
 
         key = build_landing_key(config, logical_slice, "application/json")
 
@@ -334,7 +342,7 @@ class SourceIngestTests(unittest.TestCase):
 
         key = build_landing_key(
             config,
-            config.iter_slices()[0],
+            build_logical_slices(config)[0],
             "application/octet-stream",
         )
 
@@ -356,7 +364,7 @@ class SourceIngestTests(unittest.TestCase):
 
         key = build_landing_key(
             config,
-            config.iter_slices()[0],
+            build_logical_slices(config)[0],
             "application/vnd.acme.dataset+json",
         )
 

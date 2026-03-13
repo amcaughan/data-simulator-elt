@@ -4,14 +4,8 @@ from dataclasses import dataclass
 import json
 import os
 from typing import Any
-from uuid import uuid4
 
-from common.slices import LogicalSlice, SliceWindowConfig, granularity_step
-from source_ingest.adapters.base import (
-    HistoricalSlicePullRequest,
-    LivePullRequest,
-    SourcePullRequest,
-)
+from common.slices import SliceWindowConfig
 
 
 def _require_env(name: str) -> str:
@@ -79,24 +73,3 @@ class IngestConfig:
     @property
     def mode(self) -> str:
         return self.slice_window.mode
-
-    def iter_slices(self, now=None) -> list[LogicalSlice]:
-        return [
-            LogicalSlice(logical_date=logical_date, run_id=str(uuid4()))
-            for logical_date in self.slice_window.iter_slices(now)
-        ]
-
-    def iter_pull_requests(self, now=None) -> list[SourcePullRequest]:
-        logical_slices = self.iter_slices(now)
-        if self.mode == "live_hit":
-            return [LivePullRequest(logical_slice=logical_slice) for logical_slice in logical_slices]
-
-        step = granularity_step(self.partition_granularity)
-        return [
-            HistoricalSlicePullRequest(
-                logical_slice=logical_slice,
-                slice_start=logical_slice.logical_date,
-                slice_end=logical_slice.logical_date + step,
-            )
-            for logical_slice in logical_slices
-        ]

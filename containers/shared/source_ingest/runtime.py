@@ -5,8 +5,10 @@ from datetime import UTC, datetime
 import json
 import mimetypes
 
+from common.slices import LogicalSlice
 from source_ingest.adapters import build_adapter
-from source_ingest.config import IngestConfig, LogicalSlice
+from source_ingest.config import IngestConfig
+from source_ingest.planning import build_pull_requests
 
 
 @dataclass(frozen=True)
@@ -105,7 +107,7 @@ def run_source_ingest(config: IngestConfig, s3_client) -> list[LandingObject]:
     writer = LandingWriter(config=config, s3_client=s3_client)
     results: list[LandingObject] = []
 
-    for pull_request in config.iter_pull_requests():
+    for pull_request in build_pull_requests(config):
         logical_slice = pull_request.logical_slice
         fetched = adapter.fetch(pull_request)
         landing_object = writer.write(

@@ -17,6 +17,10 @@ The runtime turns scheduler intent into explicit request types:
 - `LivePullRequest`
 - `HistoricalSlicePullRequest`
 
+Planning lives outside `IngestConfig`:
+- `config.py` holds validated runtime data
+- `planning.py` expands slice windows into logical slices and pull requests
+
 `FetchResult` is intentionally narrow:
 - response bytes
 - content type
