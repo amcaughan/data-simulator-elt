@@ -53,7 +53,3 @@ variable "source_ingest_source_dir" {
 variable "standardize_source_dir" {
   type = string
 }
-
-variable "dbt_source_dir" {
-  type = string
-}

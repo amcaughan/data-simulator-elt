@@ -26,6 +26,10 @@ output "dbt_job_name" {
   value = module.dbt.job_name
 }
 
+output "dbt_ecr_repository_url" {
+  value = aws_ecr_repository.dbt.repository_url
+}
+
 output "source_ingest_schedule_name" {
   value = aws_scheduler_schedule.source_ingest.name
 }

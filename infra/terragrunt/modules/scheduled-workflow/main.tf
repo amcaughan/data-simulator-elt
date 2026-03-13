@@ -1,5 +1,6 @@
 locals {
-  project_slug = replace(var.project_name, "_", "-")
+  project_slug      = replace(var.project_name, "_", "-")
+  dbt_repo_name     = "${local.project_slug}-${var.environment}-${var.workflow_name}-dbt"
 }
 
 module "storage" {
@@ -52,6 +53,58 @@ module "standardize" {
   container_image                = var.standardize_container_image
 }
 
+resource "aws_ecr_repository" "dbt" {
+  name                 = local.dbt_repo_name
+  image_tag_mutability = "MUTABLE"
+  force_delete         = true
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+}
+
+resource "aws_ecr_lifecycle_policy" "dbt" {
+  repository = aws_ecr_repository.dbt.name
+  policy = jsonencode({
+    rules = [
+      {
+        rulePriority = 1
+        description  = "Keep only the newest tagged workflow dbt image"
+        selection = {
+          tagStatus     = "tagged"
+          tagPrefixList = ["sha-"]
+          countType     = "imageCountMoreThan"
+          countNumber   = 1
+        }
+        action = {
+          type = "expire"
+        }
+      },
+      {
+        rulePriority = 2
+        description  = "Expire untagged images"
+        selection = {
+          tagStatus   = "untagged"
+          countType   = "imageCountMoreThan"
+          countNumber = 1
+        }
+        action = {
+          type = "expire"
+        }
+      },
+    ]
+  })
+}
+
+module "dbt_image" {
+  source = "../container-image"
+
+  aws_region         = var.aws_region
+  repository_url     = aws_ecr_repository.dbt.repository_url
+  runtime_source_dir = var.dbt_source_dir
+  build_context_dir  = var.dbt_source_dir
+}
+
 module "dbt" {
   source = "../dbt-job"
 
@@ -62,7 +115,7 @@ module "dbt" {
   marts_bucket_name          = module.storage.marts_bucket_name
   glue_database_name         = var.glue_database_name
   athena_workgroup_name      = var.athena_workgroup_name
-  container_image            = var.dbt_container_image
+  container_image            = module.dbt_image.image_uri
 }
 
 data "aws_iam_policy_document" "scheduler_assume_role" {

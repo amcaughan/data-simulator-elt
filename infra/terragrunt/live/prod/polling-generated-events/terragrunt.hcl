@@ -18,8 +18,6 @@ dependency "core" {
     source_ingest_image_uri             = "111111111111.dkr.ecr.us-east-2.amazonaws.com/data-simulator-elt-prod-source-ingest:sha-placeholder"
     standardize_ecr_repository_url      = "111111111111.dkr.ecr.us-east-2.amazonaws.com/data-simulator-elt-prod-standardize"
     standardize_image_uri               = "111111111111.dkr.ecr.us-east-2.amazonaws.com/data-simulator-elt-prod-standardize:sha-placeholder"
-    dbt_ecr_repository_url              = "111111111111.dkr.ecr.us-east-2.amazonaws.com/data-simulator-elt-prod-dbt"
-    dbt_image_uri                       = "111111111111.dkr.ecr.us-east-2.amazonaws.com/data-simulator-elt-prod-dbt:sha-placeholder"
   }
 
   mock_outputs_allowed_terraform_commands = ["init", "validate", "plan"]
@@ -50,7 +48,7 @@ inputs = {
     request_overrides = {}
   })
   partition_granularity            = "hour"
+  dbt_source_dir                   = "${get_repo_root()}/workflows/polling-generated-events/dbt"
   source_ingest_container_image    = dependency.core.outputs.source_ingest_image_uri
   standardize_container_image      = dependency.core.outputs.standardize_image_uri
-  dbt_container_image              = dependency.core.outputs.dbt_image_uri
 }

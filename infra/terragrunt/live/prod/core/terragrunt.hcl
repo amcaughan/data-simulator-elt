@@ -18,6 +18,5 @@ inputs = {
   common_source_dir                           = "${get_repo_root()}/jobs/common"
   source_ingest_source_dir                    = "${get_repo_root()}/jobs/source_ingest"
   standardize_source_dir                      = "${get_repo_root()}/jobs/standardize"
-  dbt_source_dir                              = "${get_repo_root()}/jobs/dbt"
   ssm_prefix                                  = "/services/data-simulator-elt/prod/core"
 }

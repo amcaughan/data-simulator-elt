@@ -2,9 +2,9 @@
 
 Executable runtime source trees live here.
 
-This directory is the canonical source for the shared `container-image` module
-in `infra/terragrunt/modules/`. The ELT core stack builds immutable runtime
-images from these directories and publishes image URIs for workflow stacks to
+These are the shared platform runtimes. The ELT core stack builds immutable
+images from these directories through the shared `container-image` module in
+`infra/terragrunt/modules/`, then publishes image URIs for workflow stacks to
 consume.
 
 Each runtime directory should be self-contained enough to publish as an image:
@@ -13,15 +13,19 @@ Each runtime directory should be self-contained enough to publish as an image:
 - `requirements.txt`
 - runtime code and any local scaffolding
 
-The initial job split is:
+The shared runtime split is:
 - `source_ingest/`
   source-facing landing ingestion with generic slice orchestration and source adapters
 - `standardize/`
   landing-to-processed normalization into Parquet with source-specific parsers
-- `dbt/`
-  dbt project and runtime packaging for processed-to-marts transforms
 - `stream_emitter/`
   upstream source simulation for stream-oriented workflows
+
+Workflow-specific dbt projects do not live here. They live under:
+- `workflows/<workflow_name>/dbt/`
+
+That keeps the shared platform runtimes separate from workflow-owned
+transformation logic.
 
 The source-ingest runtime is intentionally adapter-driven:
 - generic date/backfill orchestration

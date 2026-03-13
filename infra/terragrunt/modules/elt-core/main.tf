@@ -20,7 +20,6 @@ locals {
   ecr_repositories = {
     source_ingest  = "${local.project_slug}-${var.environment}-source-ingest"
     standardize    = "${local.project_slug}-${var.environment}-standardize"
-    dbt            = "${local.project_slug}-${var.environment}-dbt"
     stream_emitter = "${local.project_slug}-${var.environment}-stream-emitter"
   }
 }
@@ -180,16 +179,6 @@ module "standardize_image" {
   extra_hash_dirs = [
     var.common_source_dir,
   ]
-}
-
-module "dbt_image" {
-  count  = var.publish_runtime_images ? 1 : 0
-  source = "../container-image"
-
-  aws_region        = data.aws_region.current.name
-  repository_url    = aws_ecr_repository.this["dbt"].repository_url
-  runtime_source_dir = var.dbt_source_dir
-  build_context_dir = var.jobs_build_context_dir
 }
 
 resource "aws_ssm_parameter" "ecs_cluster_name" {

@@ -22,6 +22,10 @@ output "dbt_job_name" {
   value = module.dbt.job_name
 }
 
+output "dbt_ecr_repository_url" {
+  value = aws_ecr_repository.dbt.repository_url
+}
+
 output "kinesis_stream_name" {
   value = aws_kinesis_stream.this.name
 }

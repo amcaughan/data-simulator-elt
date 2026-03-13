@@ -53,6 +53,10 @@ variable "dbt_schedule_expression" {
   default = null
 }
 
+variable "dbt_source_dir" {
+  type = string
+}
+
 variable "source_adapter" {
   type    = string
   default = "simulator_api"
@@ -133,8 +137,4 @@ variable "standardize_output_partition_granularity" {
 variable "standardize_processed_output_prefix" {
   type    = string
   default = "raw"
-}
-
-variable "dbt_container_image" {
-  type = string
 }

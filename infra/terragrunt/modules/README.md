@@ -6,7 +6,7 @@ The current split is:
 - `elt-core`
   shared control-plane resources for one environment
 - `container-image`
-  local Docker build-and-push helper for runtime images sourced from `jobs/`
+  local Docker build-and-push helper for runtime images sourced from `jobs/` or workflow-local `dbt/` directories
 - `isolated-storage`
   per-workflow landing, processed, and marts storage
 - `source-ingest-job`
@@ -24,5 +24,5 @@ The current split is:
 
 The intended split is:
 - job modules define reusable runtime and IAM patterns
-- workflow modules compose storage, runtime modules, and orchestration
+- workflow modules compose storage, runtime modules, workflow-local dbt image publishing, and orchestration
 - live stacks instantiate concrete example workloads

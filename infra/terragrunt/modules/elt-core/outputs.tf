@@ -42,14 +42,6 @@ output "standardize_image_uri" {
   value = var.publish_runtime_images ? module.standardize_image[0].image_uri : null
 }
 
-output "dbt_ecr_repository_url" {
-  value = aws_ecr_repository.this["dbt"].repository_url
-}
-
-output "dbt_image_uri" {
-  value = var.publish_runtime_images ? module.dbt_image[0].image_uri : null
-}
-
 output "stream_emitter_ecr_repository_url" {
   value = aws_ecr_repository.this["stream_emitter"].repository_url
 }
