@@ -208,6 +208,7 @@ module "dbt" {
   marts_bucket_name          = module.storage.marts_bucket_name
   glue_database_name         = var.glue_database_name
   athena_workgroup_name      = var.athena_workgroup_name
+  athena_results_bucket_name = var.athena_results_bucket_name
   container_image            = module.dbt_image.image_uri
 }
 

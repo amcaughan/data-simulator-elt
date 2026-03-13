@@ -32,6 +32,10 @@ variable "athena_workgroup_name" {
   type = string
 }
 
+variable "athena_results_bucket_name" {
+  type = string
+}
+
 variable "container_image" {
   type = string
 }

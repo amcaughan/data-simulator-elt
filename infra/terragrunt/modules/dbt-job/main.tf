@@ -54,6 +54,24 @@ data "aws_iam_policy_document" "task_policy" {
   }
 
   statement {
+    sid    = "AthenaResultsBucketAccess"
+    effect = "Allow"
+
+    actions = [
+      "s3:GetBucketLocation",
+      "s3:ListBucket",
+      "s3:GetObject",
+      "s3:PutObject",
+      "s3:DeleteObject",
+    ]
+
+    resources = [
+      "arn:aws:s3:::${var.athena_results_bucket_name}",
+      "arn:aws:s3:::${var.athena_results_bucket_name}/*",
+    ]
+  }
+
+  statement {
     sid    = "AthenaQueryAccess"
     effect = "Allow"
 
@@ -137,6 +155,10 @@ resource "aws_ecs_task_definition" "this" {
           {
             name  = "ATHENA_WORKGROUP_NAME"
             value = var.athena_workgroup_name
+          },
+          {
+            name  = "ATHENA_RESULTS_BUCKET_NAME"
+            value = var.athena_results_bucket_name
           },
           {
             name  = "AWS_REGION"

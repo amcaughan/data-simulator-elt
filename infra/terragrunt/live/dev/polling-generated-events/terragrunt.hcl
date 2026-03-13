@@ -11,6 +11,7 @@ dependency "core" {
     ecs_cluster_arn                     = "arn:aws:ecs:us-east-2:111111111111:cluster/data-simulator-elt-dev"
     glue_database_name                  = "data_simulator_elt_dev"
     athena_workgroup_name               = "data-simulator-elt-dev"
+    athena_results_bucket_name          = "data-simulator-elt-dev-athena-results-111111111111-us-east-2"
     network_vpc_id                      = "vpc-placeholder"
     network_private_subnet_ids          = ["subnet-placeholder"]
     network_security_group_id           = "sg-placeholder"
@@ -36,6 +37,7 @@ inputs = {
   network_security_group_id        = dependency.core.outputs.network_security_group_id
   glue_database_name               = dependency.core.outputs.glue_database_name
   athena_workgroup_name            = dependency.core.outputs.athena_workgroup_name
+  athena_results_bucket_name       = dependency.core.outputs.athena_results_bucket_name
   source_base_url_ssm_param_name   = "/services/data-simulator-api/dev/private_api_invoke_url"
   ingest_schedule_expression       = "rate(15 minutes)"
   standardize_schedule_expression  = "cron(5 * * * ? *)"

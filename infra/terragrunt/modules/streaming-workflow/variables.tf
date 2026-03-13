@@ -31,6 +31,10 @@ variable "athena_workgroup_name" {
   type = string
 }
 
+variable "athena_results_bucket_name" {
+  type = string
+}
+
 variable "simulator_api_url_ssm_param_name" {
   type = string
 }
