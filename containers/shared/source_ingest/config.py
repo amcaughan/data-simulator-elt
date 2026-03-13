@@ -46,7 +46,6 @@ class IngestConfig:
     source_adapter: str
     landing_bucket_name: str
     aws_region: str
-    source_base_url: str | None
     slice_window: SliceWindowConfig
     source_adapter_config: dict[str, Any]
 
@@ -57,7 +56,6 @@ class IngestConfig:
             source_adapter=os.environ.get("SOURCE_ADAPTER", "simulator_api"),
             landing_bucket_name=_require_env("LANDING_BUCKET_NAME"),
             aws_region=_require_env("AWS_REGION"),
-            source_base_url=os.environ.get("SOURCE_BASE_URL"),
             slice_window=SliceWindowConfig(
                 partition_granularity=os.environ.get("PARTITION_GRANULARITY", "day"),
                 mode=os.environ.get("MODE", "live_hit"),

@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import hashlib
 import json
+import os
 from typing import Any
 import urllib.error
 import urllib.parse
@@ -21,6 +22,13 @@ from source_ingest.config import IngestConfig
 
 
 VALID_SEED_STRATEGIES = {"derived", "fixed", "none"}
+
+
+def _require_env(name: str) -> str:
+    value = os.environ.get(name)
+    if value is None or value == "":
+        raise ValueError(f"Missing required environment variable: {name}")
+    return value
 
 
 def build_generate_payload(
@@ -104,6 +112,15 @@ class SimulatorApiConfig:
         )
 
 
+@dataclass(frozen=True)
+class SimulatorApiRuntimeConfig:
+    source_base_url: str
+
+    @classmethod
+    def from_env(cls) -> "SimulatorApiRuntimeConfig":
+        return cls(source_base_url=_require_env("SOURCE_BASE_URL"))
+
+
 class SimulatorApiAdapter(SourceAdapter):
     capabilities = AdapterCapabilities(
         supported_pull_request_types=(LivePullRequest, HistoricalSlicePullRequest)
@@ -116,10 +133,11 @@ class SimulatorApiAdapter(SourceAdapter):
     @classmethod
     def from_ingest_config(cls, config: IngestConfig) -> "SimulatorApiAdapter":
         adapter_config = SimulatorApiConfig.from_dict(config.source_adapter_config)
+        runtime_config = SimulatorApiRuntimeConfig.from_env()
         return cls(
             workflow_name=config.workflow_name,
             aws_region=config.aws_region,
-            source_base_url=config.source_base_url,
+            runtime_config=runtime_config,
             adapter_config=adapter_config,
         )
 
@@ -127,23 +145,18 @@ class SimulatorApiAdapter(SourceAdapter):
         self,
         workflow_name: str,
         aws_region: str,
-        source_base_url: str | None,
+        runtime_config: SimulatorApiRuntimeConfig,
         adapter_config: SimulatorApiConfig,
     ):
-        if source_base_url in {None, ""}:
-            raise ValueError(
-                "Source adapter 'simulator_api' requires SOURCE_BASE_URL to be set"
-            )
-
         self.workflow_name = workflow_name
         self.aws_region = aws_region
-        self.source_base_url = source_base_url
+        self.runtime_config = runtime_config
         self.adapter_config = adapter_config
 
     def _fetch(self, pull_request: SourcePullRequest) -> FetchResult:
         route = f"/v1/presets/{self.adapter_config.preset_id}/generate"
         url = urllib.parse.urljoin(
-            self.source_base_url.rstrip("/") + "/",
+            self.runtime_config.source_base_url.rstrip("/") + "/",
             route.lstrip("/"),
         )
         payload = self._build_payload(pull_request)

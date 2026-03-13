@@ -16,6 +16,7 @@ from source_ingest.adapters.base import (
     SourceAdapter,
 )
 from source_ingest.adapters.simulator_api import (
+    SimulatorApiAdapter,
     SimulatorApiConfig,
     build_generate_payload,
     derive_seed,
@@ -106,7 +107,6 @@ class SourceIngestTests(unittest.TestCase):
             "source_adapter": "simulator_api",
             "landing_bucket_name": "landing-bucket",
             "aws_region": "us-east-2",
-            "source_base_url": "https://example.execute-api.us-east-2.amazonaws.com/dev",
             "slice_window": None,
             "source_adapter_config": {
                 "preset_id": "transaction_benchmark",
@@ -273,6 +273,28 @@ class SourceIngestTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "row_count"):
             SimulatorApiConfig.from_dict({"preset_id": "foo", "row_count": 0})
+
+    def test_simulator_adapter_requires_source_base_url_env(self):
+        config = self.build_config()
+
+        with patch.dict("os.environ", {}, clear=True):
+            with self.assertRaisesRegex(ValueError, "SOURCE_BASE_URL"):
+                SimulatorApiAdapter.from_ingest_config(config)
+
+    def test_simulator_adapter_reads_source_base_url_from_env(self):
+        config = self.build_config()
+
+        with patch.dict(
+            "os.environ",
+            {"SOURCE_BASE_URL": "https://example.execute-api.us-east-2.amazonaws.com/dev"},
+            clear=True,
+        ):
+            adapter = SimulatorApiAdapter.from_ingest_config(config)
+
+        self.assertEqual(
+            adapter.runtime_config.source_base_url,
+            "https://example.execute-api.us-east-2.amazonaws.com/dev",
+        )
 
     def test_build_landing_key_uses_content_type_suffix(self):
         from common.slices import SliceWindowConfig
