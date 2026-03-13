@@ -112,45 +112,47 @@ resource "aws_ecs_task_definition" "this" {
   task_role_arn            = aws_iam_role.task.arn
 
   container_definitions = jsonencode([
-    {
-      name      = "dbt"
-      image     = var.container_image
-      essential = true
-      command   = var.command
-      environment = [
-        {
-          name  = "WORKFLOW_NAME"
-          value = var.workflow_name
-        },
-        {
-          name  = "PROCESSED_BUCKET_NAME"
-          value = var.processed_bucket_name
-        },
-        {
-          name  = "MARTS_BUCKET_NAME"
-          value = var.marts_bucket_name
-        },
-        {
-          name  = "GLUE_DATABASE_NAME"
-          value = var.glue_database_name
-        },
-        {
-          name  = "ATHENA_WORKGROUP_NAME"
-          value = var.athena_workgroup_name
-        },
-        {
-          name  = "AWS_REGION"
-          value = var.aws_region
-        },
-      ]
-      logConfiguration = {
-        logDriver = "awslogs"
-        options = {
-          awslogs-group         = aws_cloudwatch_log_group.this.name
-          awslogs-region        = var.aws_region
-          awslogs-stream-prefix = "ecs"
+    merge(
+      {
+        name      = "dbt"
+        image     = var.container_image
+        essential = true
+        environment = [
+          {
+            name  = "WORKFLOW_NAME"
+            value = var.workflow_name
+          },
+          {
+            name  = "PROCESSED_BUCKET_NAME"
+            value = var.processed_bucket_name
+          },
+          {
+            name  = "MARTS_BUCKET_NAME"
+            value = var.marts_bucket_name
+          },
+          {
+            name  = "GLUE_DATABASE_NAME"
+            value = var.glue_database_name
+          },
+          {
+            name  = "ATHENA_WORKGROUP_NAME"
+            value = var.athena_workgroup_name
+          },
+          {
+            name  = "AWS_REGION"
+            value = var.aws_region
+          },
+        ]
+        logConfiguration = {
+          logDriver = "awslogs"
+          options = {
+            awslogs-group         = aws_cloudwatch_log_group.this.name
+            awslogs-region        = var.aws_region
+            awslogs-stream-prefix = "ecs"
+          }
         }
-      }
-    }
+      },
+      var.command == null ? {} : { command = var.command },
+    )
   ])
 }

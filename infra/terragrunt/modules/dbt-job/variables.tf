@@ -38,7 +38,7 @@ variable "container_image" {
 
 variable "command" {
   type    = list(string)
-  default = ["python", "-c", "print('dbt placeholder')"]
+  default = null
 }
 
 variable "cpu" {

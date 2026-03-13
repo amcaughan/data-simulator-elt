@@ -15,7 +15,7 @@ Required:
 
 Options:
   --env NAME                   Environment name. Default: dev
-  --step NAME                  source-ingest | standardize | both. Default: both
+  --step NAME                  source-ingest | standardize | dbt | both. Default: both
   --planning-mode NAME         temporal | manual. Default: temporal
   --slice-selector-mode NAME   current | pinned | range | relative.
   --slice-pinned-at ISO        Pinned slice anchor for selector mode pinned.
@@ -43,6 +43,11 @@ Options:
   --processed-base-prefix P    Override PROCESSED_BASE_PREFIX for standardize.
   --processed-partitions JSON  Override PROCESSED_PARTITION_FIELDS_JSON for standardize.
   --processed-path-suffix JSON Override PROCESSED_PATH_SUFFIX_JSON for standardize.
+  --dbt-select SELECTOR        Override DBT_SELECT for the dbt task.
+  --dbt-exclude SELECTOR       Override DBT_EXCLUDE for the dbt task.
+  --dbt-vars-json JSON         Override DBT_VARS_JSON for the dbt task.
+  --dbt-vars-file PATH         Read DBT_VARS_JSON override from a file.
+  --dbt-full-refresh           Set DBT_FULL_REFRESH=true for the dbt task.
   --wait                       Wait for the final task to stop before exiting.
   --help                       Show this help.
 
@@ -97,6 +102,11 @@ LANDING_INPUT_PREFIX=""
 PROCESSED_BASE_PREFIX=""
 PROCESSED_PARTITIONS_JSON=""
 PROCESSED_PATH_SUFFIX_JSON=""
+DBT_SELECT=""
+DBT_EXCLUDE=""
+DBT_VARS_JSON=""
+DBT_VARS_FILE=""
+DBT_FULL_REFRESH="false"
 WAIT_FOR_FINAL="false"
 
 while [[ $# -gt 0 ]]; do
@@ -221,6 +231,26 @@ while [[ $# -gt 0 ]]; do
       PROCESSED_PATH_SUFFIX_JSON="${2:-}"
       shift 2
       ;;
+    --dbt-select)
+      DBT_SELECT="${2:-}"
+      shift 2
+      ;;
+    --dbt-exclude)
+      DBT_EXCLUDE="${2:-}"
+      shift 2
+      ;;
+    --dbt-vars-json)
+      DBT_VARS_JSON="${2:-}"
+      shift 2
+      ;;
+    --dbt-vars-file)
+      DBT_VARS_FILE="${2:-}"
+      shift 2
+      ;;
+    --dbt-full-refresh)
+      DBT_FULL_REFRESH="true"
+      shift
+      ;;
     --wait)
       WAIT_FOR_FINAL="true"
       shift
@@ -244,9 +274,9 @@ if [[ -z "$WORKFLOW_NAME" ]]; then
 fi
 
 case "$STEP" in
-  source-ingest|standardize|both) ;;
+  source-ingest|standardize|dbt|both) ;;
   *)
-    echo "--step must be one of: source-ingest, standardize, both" >&2
+    echo "--step must be one of: source-ingest, standardize, dbt, both" >&2
     exit 1
     ;;
 esac
@@ -258,6 +288,11 @@ fi
 
 if [[ -n "$STANDARDIZE_STRATEGY_CONFIG_JSON" && -n "$STANDARDIZE_STRATEGY_CONFIG_FILE" ]]; then
   echo "Use only one of --standardize-strategy-config-json or --standardize-strategy-config-file" >&2
+  exit 1
+fi
+
+if [[ -n "$DBT_VARS_JSON" && -n "$DBT_VARS_FILE" ]]; then
+  echo "Use only one of --dbt-vars-json or --dbt-vars-file" >&2
   exit 1
 fi
 
@@ -276,6 +311,10 @@ fi
 
 if [[ -n "$MANUAL_REQUEST_FILE" ]]; then
   MANUAL_REQUEST_JSON="$(cat "$MANUAL_REQUEST_FILE")"
+fi
+
+if [[ -n "$DBT_VARS_FILE" ]]; then
+  DBT_VARS_JSON="$(cat "$DBT_VARS_FILE")"
 fi
 
 case "$PLANNING_MODE" in
@@ -339,6 +378,10 @@ run_step() {
       container_name="standardize"
       task_output_name="standardize_task_definition_arn"
       ;;
+    dbt)
+      container_name="dbt"
+      task_output_name="dbt_task_definition_arn"
+      ;;
     *)
       echo "Unsupported step: $step_name" >&2
       exit 1
@@ -376,6 +419,10 @@ run_step() {
     PROCESSED_BASE_PREFIX="$PROCESSED_BASE_PREFIX" \
     PROCESSED_PARTITIONS_JSON="$PROCESSED_PARTITIONS_JSON" \
     PROCESSED_PATH_SUFFIX_JSON="$PROCESSED_PATH_SUFFIX_JSON" \
+    DBT_SELECT="$DBT_SELECT" \
+    DBT_EXCLUDE="$DBT_EXCLUDE" \
+    DBT_VARS_JSON="$DBT_VARS_JSON" \
+    DBT_FULL_REFRESH="$DBT_FULL_REFRESH" \
     WORKFLOW_NAME="$WORKFLOW_NAME" \
     python3 - <<'PY'
 import json
@@ -403,41 +450,42 @@ planning_mode = os.environ.get("PLANNING_MODE", "temporal")
 
 env = []
 
-env.append({"name": "PLANNING_MODE", "value": planning_mode})
+if step_name in {"source-ingest", "standardize"}:
+    env.append({"name": "PLANNING_MODE", "value": planning_mode})
 
-if planning_mode == "manual":
-    if step_name == "source-ingest":
-        manual_request_json = os.environ.get("MANUAL_REQUEST_JSON")
-        if manual_request_json:
-            env.append({"name": "MANUAL_REQUEST_JSON", "value": manual_request_json})
-        for key in ("MANUAL_STORAGE_PREFIX", "MANUAL_OBJECT_NAME"):
+    if planning_mode == "manual":
+        if step_name == "source-ingest":
+            manual_request_json = os.environ.get("MANUAL_REQUEST_JSON")
+            if manual_request_json:
+                env.append({"name": "MANUAL_REQUEST_JSON", "value": manual_request_json})
+            for key in ("MANUAL_STORAGE_PREFIX", "MANUAL_OBJECT_NAME"):
+                value = os.environ.get(key)
+                if value:
+                    env.append({"name": key, "value": value})
+        elif step_name == "standardize":
+            for key in ("MANUAL_INPUT_PREFIX", "MANUAL_OUTPUT_PREFIX", "MANUAL_OBJECT_NAME"):
+                value = os.environ.get(key)
+                if value:
+                    env.append({"name": key, "value": value})
+    else:
+        env.append({"name": "SLICE_SELECTOR_MODE", "value": os.environ["SLICE_SELECTOR_MODE"]})
+
+        for key in (
+            "SLICE_PINNED_AT",
+            "SLICE_RANGE_START_AT",
+            "SLICE_RANGE_END_AT",
+            "SLICE_RELATIVE_COUNT",
+            "SLICE_RELATIVE_DIRECTION",
+            "SLICE_RELATIVE_ANCHOR_AT",
+        ):
             value = os.environ.get(key)
             if value:
                 env.append({"name": key, "value": value})
-    elif step_name == "standardize":
-        for key in ("MANUAL_INPUT_PREFIX", "MANUAL_OUTPUT_PREFIX", "MANUAL_OBJECT_NAME"):
+
+        for key in ("SLICE_ALIGNMENT_POLICY", "SLICE_RANGE_POLICY"):
             value = os.environ.get(key)
             if value:
                 env.append({"name": key, "value": value})
-else:
-    env.append({"name": "SLICE_SELECTOR_MODE", "value": os.environ["SLICE_SELECTOR_MODE"]})
-
-    for key in (
-        "SLICE_PINNED_AT",
-        "SLICE_RANGE_START_AT",
-        "SLICE_RANGE_END_AT",
-        "SLICE_RELATIVE_COUNT",
-        "SLICE_RELATIVE_DIRECTION",
-        "SLICE_RELATIVE_ANCHOR_AT",
-    ):
-        value = os.environ.get(key)
-        if value:
-            env.append({"name": key, "value": value})
-
-    for key in ("SLICE_ALIGNMENT_POLICY", "SLICE_RANGE_POLICY"):
-        value = os.environ.get(key)
-        if value:
-            env.append({"name": key, "value": value})
 
 source_adapter_config_json = os.environ.get("SOURCE_ADAPTER_CONFIG_JSON")
 if source_adapter_config_json and step_name == "source-ingest":
@@ -457,7 +505,7 @@ if standardize_strategy_config_json and step_name == "standardize":
         }
     )
 
-if planning_mode == "temporal":
+if planning_mode == "temporal" and step_name in {"source-ingest", "standardize"}:
     for env_name in (
         "LANDING_BASE_PREFIX",
         "LANDING_PARTITION_FIELDS_JSON",
@@ -506,6 +554,15 @@ if step_name == "standardize":
                 "value": processed_path_suffix_json,
             }
         )
+
+if step_name == "dbt":
+    for key in ("DBT_SELECT", "DBT_EXCLUDE", "DBT_VARS_JSON"):
+        value = os.environ.get(key)
+        if value:
+            env.append({"name": key, "value": value})
+
+    if os.environ.get("DBT_FULL_REFRESH", "false") == "true":
+        env.append({"name": "DBT_FULL_REFRESH", "value": "true"})
 
 started_by = f"manual-{os.environ['WORKFLOW_NAME']}-{step_name}"
 created_on = datetime.now(timezone.utc).date().isoformat()
@@ -587,6 +644,9 @@ case "$STEP" in
     ;;
   standardize)
     run_step "standardize"
+    ;;
+  dbt)
+    run_step "dbt"
     ;;
   both)
     run_step "source-ingest"
