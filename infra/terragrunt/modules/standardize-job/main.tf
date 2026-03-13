@@ -10,12 +10,12 @@ locals {
         value = var.workflow_name
       },
       {
-        name  = "SOURCE_ADAPTER"
-        value = var.source_adapter
+        name  = "STANDARDIZE_STRATEGY"
+        value = var.standardize_strategy
       },
       {
-        name  = "SOURCE_ADAPTER_CONFIG_JSON"
-        value = var.source_adapter_config_json
+        name  = "STANDARDIZE_STRATEGY_CONFIG_JSON"
+        value = var.standardize_strategy_config_json
       },
       {
         name  = "LANDING_BUCKET_NAME"
@@ -50,8 +50,8 @@ locals {
         value = var.slice_range_policy
       },
       {
-        name  = "PROCESSED_OUTPUT_PREFIX"
-        value = var.processed_output_prefix
+        name  = "PROCESSED_BASE_PREFIX"
+        value = var.processed_base_prefix
       },
     ],
     var.landing_base_prefix == null ? [] : [
@@ -76,6 +76,18 @@ locals {
       {
         name  = "LANDING_INPUT_PREFIX"
         value = var.landing_input_prefix
+      }
+    ],
+    var.processed_partition_fields_json == null ? [] : [
+      {
+        name  = "PROCESSED_PARTITION_FIELDS_JSON"
+        value = var.processed_partition_fields_json
+      }
+    ],
+    var.processed_path_suffix_json == null ? [] : [
+      {
+        name  = "PROCESSED_PATH_SUFFIX_JSON"
+        value = var.processed_path_suffix_json
       }
     ],
     var.slice_pinned_at == null ? [] : [

@@ -54,12 +54,14 @@ module "standardize" {
   landing_base_prefix            = var.landing_base_prefix
   landing_partition_fields_json  = var.landing_partition_fields_json
   landing_path_suffix_json       = var.landing_path_suffix_json
-  source_adapter                 = var.source_adapter
-  source_adapter_config_json     = var.source_adapter_config_json
+  standardize_strategy           = var.standardize_strategy
+  standardize_strategy_config_json = var.standardize_strategy_config_json
   aws_region                     = var.aws_region
   landing_slice_granularity      = var.slice_granularity
   output_slice_granularity       = var.standardize_output_slice_granularity
-  processed_output_prefix        = var.standardize_processed_output_prefix
+  processed_base_prefix          = var.standardize_processed_base_prefix
+  processed_partition_fields_json = var.standardize_processed_partition_fields_json
+  processed_path_suffix_json     = var.standardize_processed_path_suffix_json
   slice_selector_mode            = var.standardize_slice_selector_mode
   slice_pinned_at                = var.standardize_slice_pinned_at
   slice_range_start_at           = var.standardize_slice_range_start_at

@@ -47,6 +47,10 @@ inputs = {
     seed_strategy  = "derived"
     request_overrides = {}
   })
+  standardize_strategy             = "simulator_api"
+  standardize_strategy_config_json = jsonencode({
+    preset_id = "transaction_benchmark"
+  })
   slice_granularity                = "hour"
   dbt_source_dir                   = "${get_repo_root()}/containers/workflows/polling-generated-events/dbt"
   source_ingest_container_image    = dependency.core.outputs.source_ingest_image_uri

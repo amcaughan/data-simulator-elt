@@ -39,11 +39,11 @@ variable "landing_path_suffix_json" {
   default = null
 }
 
-variable "source_adapter" {
+variable "standardize_strategy" {
   type = string
 }
 
-variable "source_adapter_config_json" {
+variable "standardize_strategy_config_json" {
   type = string
 }
 
@@ -57,9 +57,19 @@ variable "output_slice_granularity" {
   default = "day"
 }
 
-variable "processed_output_prefix" {
+variable "processed_base_prefix" {
   type    = string
   default = "raw"
+}
+
+variable "processed_partition_fields_json" {
+  type    = string
+  default = null
+}
+
+variable "processed_path_suffix_json" {
+  type    = string
+  default = null
 }
 
 variable "landing_input_prefix" {
