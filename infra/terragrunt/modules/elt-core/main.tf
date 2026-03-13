@@ -121,6 +121,77 @@ resource "aws_ecr_repository" "this" {
   }
 }
 
+resource "aws_ecr_lifecycle_policy" "this" {
+  for_each = aws_ecr_repository.this
+
+  repository = each.value.name
+  policy = jsonencode({
+    rules = [
+      {
+        rulePriority = 1
+        description  = "Keep only the newest tagged runtime image"
+        selection = {
+          tagStatus     = "tagged"
+          tagPrefixList = ["sha-"]
+          countType     = "imageCountMoreThan"
+          countNumber   = 1
+        }
+        action = {
+          type = "expire"
+        }
+      },
+      {
+        rulePriority = 2
+        description  = "Expire untagged images"
+        selection = {
+          tagStatus   = "untagged"
+          countType   = "imageCountMoreThan"
+          countNumber = 1
+        }
+        action = {
+          type = "expire"
+        }
+      },
+    ]
+  })
+}
+
+module "source_ingest_image" {
+  count  = var.publish_runtime_images ? 1 : 0
+  source = "../container-image"
+
+  aws_region        = data.aws_region.current.name
+  repository_url    = aws_ecr_repository.this["source_ingest"].repository_url
+  dockerfile_path   = var.source_ingest_dockerfile_path
+  build_context_dir = var.jobs_build_context_dir
+  hash_dirs = [
+    var.common_source_dir,
+    var.source_ingest_source_dir,
+  ]
+  hash_files = [
+    var.jobs_requirements_file,
+    var.source_ingest_dockerfile_path,
+  ]
+}
+
+module "standardize_image" {
+  count  = var.publish_runtime_images ? 1 : 0
+  source = "../container-image"
+
+  aws_region        = data.aws_region.current.name
+  repository_url    = aws_ecr_repository.this["standardize"].repository_url
+  dockerfile_path   = var.standardize_dockerfile_path
+  build_context_dir = var.jobs_build_context_dir
+  hash_dirs = [
+    var.common_source_dir,
+    var.standardize_source_dir,
+  ]
+  hash_files = [
+    var.jobs_requirements_file,
+    var.standardize_dockerfile_path,
+  ]
+}
+
 resource "aws_ssm_parameter" "ecs_cluster_name" {
   count = var.publish_ssm_parameters ? 1 : 0
 

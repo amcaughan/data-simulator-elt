@@ -15,7 +15,9 @@ dependency "core" {
     network_private_subnet_ids          = ["subnet-placeholder"]
     network_security_group_id           = "sg-placeholder"
     source_ingest_ecr_repository_url    = "111111111111.dkr.ecr.us-east-2.amazonaws.com/data-simulator-elt-prod-source-ingest"
+    source_ingest_image_uri             = "111111111111.dkr.ecr.us-east-2.amazonaws.com/data-simulator-elt-prod-source-ingest:sha-placeholder"
     standardize_ecr_repository_url      = "111111111111.dkr.ecr.us-east-2.amazonaws.com/data-simulator-elt-prod-standardize"
+    standardize_image_uri               = "111111111111.dkr.ecr.us-east-2.amazonaws.com/data-simulator-elt-prod-standardize:sha-placeholder"
     dbt_ecr_repository_url              = "111111111111.dkr.ecr.us-east-2.amazonaws.com/data-simulator-elt-prod-dbt"
   }
 
@@ -47,7 +49,7 @@ inputs = {
     request_overrides = {}
   })
   partition_granularity            = "hour"
-  source_ingest_container_image    = "${dependency.core.outputs.source_ingest_ecr_repository_url}:latest"
-  standardize_container_image      = "${dependency.core.outputs.standardize_ecr_repository_url}:latest"
+  source_ingest_container_image    = dependency.core.outputs.source_ingest_image_uri
+  standardize_container_image      = dependency.core.outputs.standardize_image_uri
   dbt_container_image              = "${dependency.core.outputs.dbt_ecr_repository_url}:latest"
 }

@@ -32,3 +32,36 @@ variable "force_destroy_stateful_resources" {
 variable "ssm_prefix" {
   type = string
 }
+
+variable "publish_runtime_images" {
+  type    = bool
+  default = true
+}
+
+variable "jobs_build_context_dir" {
+  type = string
+}
+
+variable "jobs_requirements_file" {
+  type = string
+}
+
+variable "common_source_dir" {
+  type = string
+}
+
+variable "source_ingest_source_dir" {
+  type = string
+}
+
+variable "source_ingest_dockerfile_path" {
+  type = string
+}
+
+variable "standardize_source_dir" {
+  type = string
+}
+
+variable "standardize_dockerfile_path" {
+  type = string
+}
