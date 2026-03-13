@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime
 import json
+import mimetypes
 
 from source_ingest.adapters import build_adapter
 from source_ingest.config import IngestConfig, LogicalSlice
@@ -17,7 +18,21 @@ class LandingObject:
     metadata: dict[str, str]
 
 
-def build_landing_key(config: IngestConfig, logical_slice: LogicalSlice) -> str:
+def build_object_suffix(content_type: str) -> str:
+    normalized_content_type = content_type.split(";", maxsplit=1)[0].strip().lower()
+    if normalized_content_type.endswith("+json"):
+        return ".json"
+    suffix = mimetypes.guess_extension(normalized_content_type, strict=False)
+    if suffix is not None:
+        return suffix
+    return ".bin"
+
+
+def build_landing_key(
+    config: IngestConfig,
+    logical_slice: LogicalSlice,
+    content_type: str,
+) -> str:
     parts = [
         f"workflow={config.workflow_name}",
         f"adapter={config.source_adapter}",
@@ -27,7 +42,7 @@ def build_landing_key(config: IngestConfig, logical_slice: LogicalSlice) -> str:
     ]
     if config.partition_granularity == "hour":
         parts.append(f"hour={logical_slice.hour}")
-    parts.append(f"run_id={logical_slice.run_id}.json")
+    parts.append(f"run_id={logical_slice.run_id}{build_object_suffix(content_type)}")
     return "/".join(parts)
 
 
@@ -62,7 +77,7 @@ class LandingWriter:
         adapter_metadata: dict[str, str],
     ) -> LandingObject:
         ingested_at = datetime.now(UTC)
-        key = build_landing_key(self.config, logical_slice)
+        key = build_landing_key(self.config, logical_slice, content_type)
         metadata = build_landing_metadata(
             config=self.config,
             logical_slice=logical_slice,

@@ -4,18 +4,23 @@ Responsibilities:
 - build explicit pull requests generically
 - delegate source fetch behavior to a named adapter
 - write exact source payloads into the landing bucket
-- support both live-hit and backfill execution modes
+- support different pull request types without baking source behavior into the runtime
 
 Adapter-specific behavior lives under `adapters/`.
 
 Each source adapter must implement the abstract base in `adapters/base.py`:
 - `adapter_key()`
 - `from_ingest_config(...)`
-- `fetch(...)`
+- `_fetch(...)`
 
 The runtime turns scheduler intent into explicit request types:
 - `LivePullRequest`
 - `HistoricalSlicePullRequest`
+
+`FetchResult` is intentionally narrow:
+- response bytes
+- content type
+- adapter-provided object metadata to persist with the landing object
 
 For `simulator_api`, the adapter is responsible for:
 - interpreting pull requests as preset generate requests

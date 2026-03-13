@@ -274,7 +274,7 @@ class SourceIngestTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "row_count"):
             SimulatorApiConfig.from_dict({"preset_id": "foo", "row_count": 0})
 
-    def test_build_landing_key_is_generic(self):
+    def test_build_landing_key_uses_content_type_suffix(self):
         from common.slices import SliceWindowConfig
 
         config = self.build_config(
@@ -289,11 +289,55 @@ class SourceIngestTests(unittest.TestCase):
         )
         logical_slice = config.iter_slices()[0]
 
-        key = build_landing_key(config, logical_slice)
+        key = build_landing_key(config, logical_slice, "application/json")
 
         self.assertIn("workflow=polling-generated-events", key)
         self.assertIn("adapter=simulator_api", key)
         self.assertIn("year=2026/month=03/day=12/hour=08", key)
+        self.assertTrue(key.endswith(".json"))
+
+    def test_build_landing_key_falls_back_to_binary_suffix(self):
+        from common.slices import SliceWindowConfig
+
+        config = self.build_config(
+            slice_window=SliceWindowConfig(
+                partition_granularity="day",
+                mode="live_hit",
+                logical_date="2026-03-12",
+                start_at=None,
+                end_at=None,
+                backfill_days=None,
+            )
+        )
+
+        key = build_landing_key(
+            config,
+            config.iter_slices()[0],
+            "application/octet-stream",
+        )
+
+        self.assertTrue(key.endswith(".bin"))
+
+    def test_build_landing_key_uses_json_suffix_for_vendor_json_types(self):
+        from common.slices import SliceWindowConfig
+
+        config = self.build_config(
+            slice_window=SliceWindowConfig(
+                partition_granularity="day",
+                mode="live_hit",
+                logical_date="2026-03-12",
+                start_at=None,
+                end_at=None,
+                backfill_days=None,
+            )
+        )
+
+        key = build_landing_key(
+            config,
+            config.iter_slices()[0],
+            "application/vnd.acme.dataset+json",
+        )
+
         self.assertTrue(key.endswith(".json"))
 
     def test_run_source_ingest_writes_landing_object(self):
