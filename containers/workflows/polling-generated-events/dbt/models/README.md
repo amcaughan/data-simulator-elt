@@ -1,9 +1,19 @@
 # models
 
-dbt models will be organized here by layer:
-- `staging/`
-- `intermediate/`
+dbt models for this workflow are organized by warehouse layer:
+- `bronze/`
+- `silver/`
+- `gold/`
 - `marts/`
 
-Within those layers, workflow-specific model groupings should stay clear enough
-that one workload can be reasoned about without reading all of the others.
+`bronze/` holds source declarations for the standardized parquet already written
+to `processed/bronze`.
+
+`silver/` keeps minimally cleaned row-grain models, including the split between
+transaction facts and anomaly answer-key metadata.
+
+`gold/` adds derived columns and aggregate tables that act as the canonical
+warehouse outputs for this workflow.
+
+`marts/` publishes audience-specific subsets of the gold layer into the marts
+bucket.

@@ -34,7 +34,8 @@ Each workflow should be understandable in isolation:
 The intended data movement is:
 - source ingest writes exact payloads into `landing`
 - standardization jobs normalize and move data into `processed/bronze`
-- dbt builds consumer-facing models from `processed` into `marts`
+- workflow-local dbt projects build silver and gold tables from `processed/bronze`
+- dbt publishes audience-facing mart tables into `marts`
 
 The shared core is expected to own:
 - ECS cluster
@@ -132,6 +133,15 @@ or:
   --slice-selector-mode range \
   --slice-range-start-at 2026-03-01T00:00:00Z \
   --slice-range-end-at 2026-03-03T23:59:59Z \
+  --wait
+```
+
+To run the workflow-local dbt layer manually:
+
+```bash
+./scripts/run-scheduled-workflow.sh \
+  --workflow polling-generated-events \
+  --step dbt \
   --wait
 ```
 
