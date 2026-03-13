@@ -2,6 +2,22 @@ output "workflow_name" {
   value = var.workflow_name
 }
 
+output "aws_region" {
+  value = var.aws_region
+}
+
+output "ecs_cluster_arn" {
+  value = var.ecs_cluster_arn
+}
+
+output "network_private_subnet_ids" {
+  value = var.network_private_subnet_ids
+}
+
+output "network_security_group_id" {
+  value = var.network_security_group_id
+}
+
 output "landing_bucket_name" {
   value = module.storage.landing_bucket_name
 }
@@ -18,12 +34,24 @@ output "source_ingest_job_name" {
   value = module.source_ingest.job_name
 }
 
+output "source_ingest_task_definition_arn" {
+  value = module.source_ingest.task_definition_arn
+}
+
 output "standardize_job_name" {
   value = module.standardize.job_name
 }
 
+output "standardize_task_definition_arn" {
+  value = module.standardize.task_definition_arn
+}
+
 output "dbt_job_name" {
   value = module.dbt.job_name
+}
+
+output "dbt_task_definition_arn" {
+  value = module.dbt.task_definition_arn
 }
 
 output "dbt_ecr_repository_url" {
