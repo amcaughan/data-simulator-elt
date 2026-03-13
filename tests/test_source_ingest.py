@@ -41,9 +41,11 @@ class FakeAdapter(SourceAdapter):
         return FetchResult(
             body=b'{"row_count": 3, "rows": []}',
             content_type="application/json",
-            row_count=3,
-            route="/v1/presets/transaction_benchmark/generate",
-            source_metadata={"preset_id": "transaction_benchmark"},
+            metadata={
+                "row_count": "3",
+                "preset_id": "transaction_benchmark",
+                "source_route": "/v1/presets/transaction_benchmark/generate",
+            },
         )
 
 
@@ -322,6 +324,11 @@ class SourceIngestTests(unittest.TestCase):
         self.assertEqual(put_call["ContentType"], "application/json")
         self.assertEqual(put_call["Metadata"]["workflow_name"], "polling-generated-events")
         self.assertEqual(put_call["Metadata"]["preset_id"], "transaction_benchmark")
+        self.assertEqual(
+            put_call["Metadata"]["source_route"],
+            "/v1/presets/transaction_benchmark/generate",
+        )
+        self.assertEqual(put_call["Metadata"]["row_count"], "3")
 
     def test_run_source_ingest_rejects_unsupported_pull_request_type(self):
         from common.slices import SliceWindowConfig

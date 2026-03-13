@@ -40,9 +40,7 @@ class AdapterCapabilities:
 class FetchResult:
     body: bytes
     content_type: str
-    row_count: int | None
-    route: str | None = None
-    source_metadata: dict[str, str] = field(default_factory=dict)
+    metadata: dict[str, str] = field(default_factory=dict)
 
 
 class UnsupportedSourcePullRequestError(ValueError):

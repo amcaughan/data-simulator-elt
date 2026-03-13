@@ -149,14 +149,25 @@ class SimulatorApiAdapter(SourceAdapter):
         payload = self._build_payload(pull_request)
         response_bytes, content_type = self._signed_post(url, payload)
         parsed = json.loads(response_bytes.decode("utf-8"))
-        row_count = parsed.get("row_count")
         return FetchResult(
             body=response_bytes,
             content_type=content_type,
-            row_count=row_count if isinstance(row_count, int) else None,
-            route=route,
-            source_metadata={"preset_id": self.adapter_config.preset_id},
+            metadata=self._build_response_metadata(parsed=parsed, route=route),
         )
+
+    def _build_response_metadata(
+        self,
+        parsed: dict[str, Any],
+        route: str,
+    ) -> dict[str, str]:
+        metadata = {
+            "preset_id": self.adapter_config.preset_id,
+            "source_route": route,
+        }
+        row_count = parsed.get("row_count")
+        if isinstance(row_count, int):
+            metadata["row_count"] = str(row_count)
+        return metadata
 
     def _build_payload(self, pull_request: SourcePullRequest) -> dict[str, Any]:
         if isinstance(pull_request, LivePullRequest):

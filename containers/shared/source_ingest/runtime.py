@@ -35,9 +35,7 @@ def build_landing_metadata(
     config: IngestConfig,
     logical_slice: LogicalSlice,
     ingested_at: datetime,
-    result_row_count: int | None,
-    source_metadata: dict[str, str],
-    route: str | None,
+    adapter_metadata: dict[str, str],
 ) -> dict[str, str]:
     metadata = {
         "workflow_name": config.workflow_name,
@@ -47,11 +45,7 @@ def build_landing_metadata(
         "mode": config.mode,
         "partition_granularity": config.partition_granularity,
     }
-    if result_row_count is not None:
-        metadata["row_count"] = str(result_row_count)
-    if route is not None:
-        metadata["route"] = route
-    metadata.update(source_metadata)
+    metadata.update(adapter_metadata)
     return metadata
 
 
@@ -65,9 +59,7 @@ class LandingWriter:
         logical_slice: LogicalSlice,
         body: bytes,
         content_type: str,
-        result_row_count: int | None,
-        source_metadata: dict[str, str],
-        route: str | None,
+        adapter_metadata: dict[str, str],
     ) -> LandingObject:
         ingested_at = datetime.now(UTC)
         key = build_landing_key(self.config, logical_slice)
@@ -75,9 +67,7 @@ class LandingWriter:
             config=self.config,
             logical_slice=logical_slice,
             ingested_at=ingested_at,
-            result_row_count=result_row_count,
-            source_metadata=source_metadata,
-            route=route,
+            adapter_metadata=adapter_metadata,
         )
         self.s3_client.put_object(
             Bucket=self.config.landing_bucket_name,
@@ -107,9 +97,7 @@ def run_source_ingest(config: IngestConfig, s3_client) -> list[LandingObject]:
             logical_slice=logical_slice,
             body=fetched.body,
             content_type=fetched.content_type,
-            result_row_count=fetched.row_count,
-            source_metadata=fetched.source_metadata,
-            route=fetched.route,
+            adapter_metadata=fetched.metadata,
         )
         print(
             json.dumps(
@@ -118,8 +106,8 @@ def run_source_ingest(config: IngestConfig, s3_client) -> list[LandingObject]:
                     "bucket": landing_object.bucket_name,
                     "key": landing_object.key,
                     "logical_date": logical_slice.logical_date.isoformat(),
-                    "route": fetched.route,
-                    "row_count": fetched.row_count,
+                    "mode": pull_request.mode,
+                    "content_type": fetched.content_type,
                 }
             )
         )
