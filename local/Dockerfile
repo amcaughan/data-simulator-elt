@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y \
     apt-utils \
     git \
     curl \
+    docker.io \
     jq \
     python3 \
     python3-pip \

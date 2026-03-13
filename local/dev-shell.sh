@@ -37,10 +37,22 @@ run() {
     build
   fi
 
-  docker run --rm -it \
-    -v "$REPO_ROOT:/workspace" \
-    -w /workspace \
-    -v "$HOME/.aws:/home/dev/.aws:rw" \
+  local docker_args=(
+    --rm
+    -it
+    -v "$REPO_ROOT:/workspace"
+    -w /workspace
+    -v "$HOME/.aws:/home/dev/.aws:rw"
+  )
+
+  if [[ -S /var/run/docker.sock ]]; then
+    docker_args+=(
+      -v /var/run/docker.sock:/var/run/docker.sock
+      --group-add "$(stat -c '%g' /var/run/docker.sock)"
+    )
+  fi
+
+  docker run "${docker_args[@]}" \
     "$IMAGE_NAME" \
     /bin/bash -lc 'if [[ -f /workspace/jobs/requirements.txt ]] && [[ -s /workspace/jobs/requirements.txt ]]; then python3 -m pip install --user -r /workspace/jobs/requirements.txt; fi; if [[ -f /workspace/dbt/requirements.txt ]] && [[ -s /workspace/dbt/requirements.txt ]]; then python3 -m pip install --user -r /workspace/dbt/requirements.txt; fi; exec /bin/bash'
 }
