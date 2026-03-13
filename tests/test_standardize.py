@@ -12,6 +12,7 @@ except ImportError:  # pragma: no cover - environment-dependent
     pyarrow = None
 
 from common.slices import SliceWindowConfig
+from common.storage_layout import StorageLayoutConfig
 
 if pyarrow is not None:
     from standardize.config import StandardizeConfig
@@ -66,17 +67,21 @@ class StandardizeTests(unittest.TestCase):
             "landing_bucket_name": "landing-bucket",
             "processed_bucket_name": "processed-bucket",
             "aws_region": "us-east-2",
-            "landing_partition_granularity": "hour",
-            "output_partition_granularity": "day",
+            "landing_slice_granularity": "hour",
+            "landing_layout": StorageLayoutConfig(
+                base_prefix="client=acme/project=finance",
+                partition_fields=("workflow", "adapter", "year", "month", "day", "hour"),
+            ),
+            "output_slice_granularity": "day",
             "processed_output_prefix": "raw",
             "landing_input_prefix": None,
             "slice_window": SliceWindowConfig(
-                partition_granularity="day",
+                slice_granularity="day",
                 mode="live_hit",
                 logical_date="2026-03-12",
                 start_at=None,
                 end_at=None,
-                backfill_days=None,
+                backfill_count=None,
             ),
             "source_adapter_config": {"preset_id": "transaction_benchmark"},
         }
@@ -93,7 +98,10 @@ class StandardizeTests(unittest.TestCase):
 
         self.assertEqual(
             prefix,
-            "workflow=polling-generated-events/adapter=simulator_api/year=2026/month=03/day=12/",
+            (
+                "client=acme/project=finance/"
+                "workflow=polling-generated-events/adapter=simulator_api/year=2026/month=03/day=12/"
+            ),
         )
 
     def test_processed_key_uses_raw_prefix(self):
@@ -104,7 +112,7 @@ class StandardizeTests(unittest.TestCase):
 
         self.assertTrue(
             key.startswith(
-                "raw/workflow=polling-generated-events/adapter=simulator_api/year=2026/month=03/day=12/"
+                "raw/year=2026/month=03/day=12/"
             )
         )
         self.assertTrue(key.endswith(".parquet"))
@@ -114,8 +122,18 @@ class StandardizeTests(unittest.TestCase):
 
         config = self.build_config()
         logical_slice = config.iter_slices()[0]
-        key_one = "workflow=polling-generated-events/adapter=simulator_api/year=2026/month=03/day=12/hour=00/run_id=a.json"
-        key_two = "workflow=polling-generated-events/adapter=simulator_api/year=2026/month=03/day=12/hour=01/run_id=b.json"
+        key_one = (
+            "client=acme/project=finance/workflow=polling-generated-events/"
+            "adapter=simulator_api/year=2026/month=03/day=12/hour=00/run_id=a.json"
+        )
+        key_two = (
+            "client=acme/project=finance/workflow=polling-generated-events/"
+            "adapter=simulator_api/year=2026/month=03/day=12/hour=01/run_id=b.json"
+        )
+        manifest_key = (
+            "client=acme/project=finance/workflow=polling-generated-events/"
+            "adapter=simulator_api/year=2026/month=03/day=12/hour=00/run_id=a.manifest.json"
+        )
         landing_payload = {
             "row_count": 1,
             "schema_version": "v1",
@@ -130,6 +148,10 @@ class StandardizeTests(unittest.TestCase):
                         "logical_date": logical_slice.logical_date.isoformat(),
                         "preset_id": "transaction_benchmark",
                     },
+                },
+                ("landing-bucket", manifest_key): {
+                    "body": b"{}",
+                    "metadata": {},
                 },
                 ("landing-bucket", key_two): {
                     "body": json.dumps(landing_payload).encode("utf-8"),
@@ -151,9 +173,10 @@ class StandardizeTests(unittest.TestCase):
         self.assertEqual(len(put_calls), 1)
         self.assertTrue(
             put_calls[0]["Key"].startswith(
-                "raw/workflow=polling-generated-events/adapter=simulator_api/year=2026/month=03/day=12/"
+                "raw/year=2026/month=03/day=12/"
             )
         )
+        self.assertEqual(put_calls[0]["Metadata"]["landing_object_count"], "2")
 
 
 if __name__ == "__main__":

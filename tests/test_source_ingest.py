@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+import json
 from pathlib import Path
 import sys
 import unittest
@@ -8,6 +9,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "containers" / "shared"))
 
+from common.storage_layout import StorageLayoutConfig, default_partition_fields
 from source_ingest.adapters.base import (
     AdapterCapabilities,
     FetchOutput,
@@ -132,6 +134,7 @@ class SourceIngestTests(unittest.TestCase):
             "landing_bucket_name": "landing-bucket",
             "aws_region": "us-east-2",
             "slice_window": None,
+            "landing_layout": None,
             "source_adapter_config": {
                 "preset_id": "transaction_benchmark",
                 "row_count": 250,
@@ -144,12 +147,19 @@ class SourceIngestTests(unittest.TestCase):
             from common.slices import SliceWindowConfig
 
             values["slice_window"] = SliceWindowConfig(
-                partition_granularity="day",
+                slice_granularity="day",
                 mode="live_hit",
                 logical_date=None,
                 start_at=None,
                 end_at=None,
-                backfill_days=None,
+                backfill_count=None,
+            )
+        if values["landing_layout"] is None:
+            values["landing_layout"] = StorageLayoutConfig(
+                base_prefix=None,
+                partition_fields=default_partition_fields(
+                    values["slice_window"].slice_granularity
+                ),
             )
         config = IngestConfig(**values)
         config.validate()
@@ -160,12 +170,12 @@ class SourceIngestTests(unittest.TestCase):
 
         config = self.build_config(
             slice_window=SliceWindowConfig(
-                partition_granularity="hour",
+                slice_granularity="hour",
                 mode="live_hit",
                 logical_date=None,
                 start_at=None,
                 end_at=None,
-                backfill_days=None,
+                backfill_count=None,
             )
         )
 
@@ -183,12 +193,12 @@ class SourceIngestTests(unittest.TestCase):
 
         config = self.build_config(
             slice_window=SliceWindowConfig(
-                partition_granularity="day",
+                slice_granularity="day",
                 mode="live_hit",
                 logical_date="2026-03-12",
                 start_at=None,
                 end_at=None,
-                backfill_days=None,
+                backfill_count=None,
             )
         )
 
@@ -210,12 +220,12 @@ class SourceIngestTests(unittest.TestCase):
 
         config = self.build_config(
             slice_window=SliceWindowConfig(
-                partition_granularity="day",
+                slice_granularity="day",
                 mode="backfill",
                 logical_date=None,
                 start_at=None,
                 end_at=None,
-                backfill_days=3,
+                backfill_count=3,
             )
         )
 
@@ -309,12 +319,12 @@ class SourceIngestTests(unittest.TestCase):
 
         config = self.build_config(
             slice_window=SliceWindowConfig(
-                partition_granularity="day",
+                slice_granularity="day",
                 mode="backfill",
                 logical_date=None,
                 start_at=None,
                 end_at=None,
-                backfill_days=3,
+                backfill_count=3,
             )
         )
         storage_targets = build_storage_targets(
@@ -324,8 +334,9 @@ class SourceIngestTests(unittest.TestCase):
         requested_slices = tuple(
             RequestedSlice(
                 logical_date=target.logical_slice.logical_date,
-                slice_start=target.logical_slice.logical_date,
-                slice_end=target.logical_slice.logical_date,
+                slice_start=target.logical_slice.slice_start,
+                slice_end=target.logical_slice.slice_end,
+                granularity=target.logical_slice.granularity,
             )
             for target in storage_targets
         )
@@ -356,20 +367,18 @@ class SourceIngestTests(unittest.TestCase):
 
         config = self.build_config(
             slice_window=SliceWindowConfig(
-                partition_granularity="hour",
+                slice_granularity="hour",
                 mode="live_hit",
                 logical_date="2026-03-12T08:00:00Z",
                 start_at=None,
                 end_at=None,
-                backfill_days=None,
+                backfill_count=None,
             )
         )
-        logical_slice = build_storage_targets(config)[0].logical_slice
+        storage_target = build_storage_targets(config)[0]
 
-        key = build_landing_key(config, logical_slice, "application/json")
+        key = build_landing_key(config, storage_target, "application/json")
 
-        self.assertIn("workflow=polling-generated-events", key)
-        self.assertIn("adapter=simulator_api", key)
         self.assertIn("year=2026/month=03/day=12/hour=08", key)
         self.assertTrue(key.endswith(".json"))
 
@@ -378,18 +387,18 @@ class SourceIngestTests(unittest.TestCase):
 
         config = self.build_config(
             slice_window=SliceWindowConfig(
-                partition_granularity="day",
+                slice_granularity="day",
                 mode="live_hit",
                 logical_date="2026-03-12",
                 start_at=None,
                 end_at=None,
-                backfill_days=None,
+                backfill_count=None,
             )
         )
 
         key = build_landing_key(
             config,
-            build_storage_targets(config)[0].logical_slice,
+            build_storage_targets(config)[0],
             "application/octet-stream",
         )
 
@@ -400,34 +409,101 @@ class SourceIngestTests(unittest.TestCase):
 
         config = self.build_config(
             slice_window=SliceWindowConfig(
-                partition_granularity="day",
+                slice_granularity="day",
                 mode="live_hit",
                 logical_date="2026-03-12",
                 start_at=None,
                 end_at=None,
-                backfill_days=None,
+                backfill_count=None,
             )
         )
 
         key = build_landing_key(
             config,
-            build_storage_targets(config)[0].logical_slice,
+            build_storage_targets(config)[0],
             "application/vnd.acme.dataset+json",
         )
 
         self.assertTrue(key.endswith(".json"))
 
-    def test_run_source_ingest_writes_landing_object(self):
+    def test_build_landing_key_uses_base_prefix_and_custom_partition_fields(self):
         from common.slices import SliceWindowConfig
 
         config = self.build_config(
+            landing_layout=StorageLayoutConfig(
+                base_prefix="client=acme/project=finance",
+                partition_fields=("workflow", "year", "month"),
+            ),
             slice_window=SliceWindowConfig(
-                partition_granularity="day",
+                slice_granularity="hour",
+                mode="live_hit",
+                logical_date="2026-03-12T08:00:00Z",
+                start_at=None,
+                end_at=None,
+                backfill_count=None,
+            ),
+        )
+
+        key = build_landing_key(
+            config,
+            build_storage_targets(config)[0],
+            "application/json",
+        )
+
+        self.assertTrue(key.startswith("client=acme/project=finance/"))
+        self.assertIn("workflow=polling-generated-events", key)
+        self.assertIn("year=2026/month=03", key)
+        self.assertNotIn("adapter=simulator_api", key)
+        self.assertNotIn("/day=12/", key)
+
+    def test_build_landing_key_appends_path_suffix_after_time_partitions(self):
+        from common.slices import SliceWindowConfig
+
+        config = self.build_config(
+            landing_layout=StorageLayoutConfig(
+                base_prefix="client=acme",
+                partition_fields=("year", "month", "day"),
+                path_suffix=("api=test_api", "files"),
+            ),
+            slice_window=SliceWindowConfig(
+                slice_granularity="day",
                 mode="live_hit",
                 logical_date="2026-03-12",
                 start_at=None,
                 end_at=None,
-                backfill_days=None,
+                backfill_count=None,
+            ),
+        )
+
+        key = build_landing_key(
+            config,
+            build_storage_targets(config)[0],
+            "application/json",
+        )
+
+        self.assertIn("client=acme/year=2026/month=03/day=12/api=test_api/files/", key)
+
+    def test_config_rejects_path_suffix_segments_with_slashes(self):
+        with self.assertRaisesRegex(ValueError, "Path suffix segments"):
+            self.build_config(
+                landing_layout=StorageLayoutConfig(
+                    base_prefix=None,
+                    partition_fields=("year", "month", "day"),
+                    path_suffix=("api/test",),
+                )
+            )
+
+    def test_run_source_ingest_writes_landing_object_and_manifest(self):
+        from common.slices import SliceWindowConfig
+
+        config = self.build_config(
+            slice_window=SliceWindowConfig(
+                slice_granularity="day",
+                mode="live_hit",
+                logical_date="2026-03-12",
+                start_at=None,
+                end_at=None,
+                backfill_count=None,
             )
         )
         s3_client = FakeS3Client()
@@ -439,29 +515,53 @@ class SourceIngestTests(unittest.TestCase):
             results = run_source_ingest(config=config, s3_client=s3_client)
 
         self.assertEqual(len(results), 1)
-        self.assertEqual(len(s3_client.calls), 1)
-        put_call = s3_client.calls[0]
-        self.assertEqual(put_call["Bucket"], "landing-bucket")
-        self.assertEqual(put_call["ContentType"], "application/json")
-        self.assertEqual(put_call["Metadata"]["workflow_name"], "polling-generated-events")
-        self.assertEqual(put_call["Metadata"]["preset_id"], "transaction_benchmark")
+        self.assertEqual(len(s3_client.calls), 2)
+        payload_call = next(
+            call for call in s3_client.calls if not call["Key"].endswith(".manifest.json")
+        )
+        manifest_call = next(
+            call for call in s3_client.calls if call["Key"].endswith(".manifest.json")
+        )
+        self.assertEqual(payload_call["Bucket"], "landing-bucket")
+        self.assertEqual(payload_call["ContentType"], "application/json")
         self.assertEqual(
-            put_call["Metadata"]["source_route"],
+            payload_call["Metadata"]["workflow_name"], "polling-generated-events"
+        )
+        self.assertEqual(payload_call["Metadata"]["preset_id"], "transaction_benchmark")
+        self.assertEqual(
+            payload_call["Metadata"]["source_route"],
             "/v1/presets/transaction_benchmark/generate",
         )
-        self.assertEqual(put_call["Metadata"]["row_count"], "3")
+        self.assertEqual(payload_call["Metadata"]["row_count"], "3")
+        manifest = json.loads(manifest_call["Body"].decode("utf-8"))
+        self.assertEqual(manifest["request"]["kind"], "slice")
+        self.assertEqual(manifest["storage"]["payload_key"], payload_call["Key"])
+        self.assertEqual(manifest["storage"]["manifest_key"], manifest_call["Key"])
+        self.assertEqual(
+            manifest["storage"]["partition_fields"],
+            ["year", "month", "day"],
+        )
+        self.assertEqual(manifest["storage"]["path_suffix"], [])
+        self.assertEqual(
+            manifest["adapter_config"]["preset_id"],
+            "transaction_benchmark",
+        )
+        self.assertEqual(
+            manifest["payload"]["metadata"]["source_route"],
+            "/v1/presets/transaction_benchmark/generate",
+        )
 
     def test_run_source_ingest_writes_multiple_objects_for_multi_slice_request(self):
         from common.slices import SliceWindowConfig
 
         config = self.build_config(
             slice_window=SliceWindowConfig(
-                partition_granularity="day",
+                slice_granularity="day",
                 mode="backfill",
                 logical_date=None,
                 start_at=None,
                 end_at=None,
-                backfill_days=2,
+                backfill_count=2,
             ),
         )
         s3_client = FakeS3Client()
@@ -473,7 +573,15 @@ class SourceIngestTests(unittest.TestCase):
             results = run_source_ingest(config=config, s3_client=s3_client)
 
         self.assertEqual(len(results), 2)
-        self.assertEqual(len(s3_client.calls), 2)
+        self.assertEqual(len(s3_client.calls), 4)
+        payload_calls = [call for call in s3_client.calls if not call["Key"].endswith(".manifest.json")]
+        manifest_calls = [call for call in s3_client.calls if call["Key"].endswith(".manifest.json")]
+        self.assertEqual(len(payload_calls), 2)
+        self.assertEqual(len(manifest_calls), 2)
+        self.assertEqual(
+            sorted(result.manifest_key for result in results),
+            sorted(call["Key"] for call in manifest_calls),
+        )
 
     def test_run_source_ingest_rejects_unsupported_request_type(self):
         from common.slices import SliceWindowConfig
@@ -481,12 +589,12 @@ class SourceIngestTests(unittest.TestCase):
         config = self.build_config(
             source_adapter="unsupported_source",
             slice_window=SliceWindowConfig(
-                partition_granularity="day",
+                slice_granularity="day",
                 mode="backfill",
                 logical_date=None,
                 start_at=None,
                 end_at=None,
-                backfill_days=2,
+                backfill_count=2,
             ),
         )
 
