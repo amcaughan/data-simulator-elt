@@ -9,9 +9,17 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from common.slices import LogicalSlice, parse_iso_datetime
-from common.storage_layout import build_partition_components, default_partition_fields, join_storage_path, trim_partition_fields_for_granularity
+from common.storage_layout import (
+    build_partition_components,
+    join_storage_path,
+    trim_partition_fields_for_granularity,
+)
 from standardize.config import StandardizeConfig
-from standardize.parsers import build_parser
+from standardize.strategies import build_strategy
+from standardize.strategies.base import (
+    StandardizeInputObject,
+    StandardizeOutput,
+)
 
 
 @dataclass(frozen=True)
@@ -54,15 +62,20 @@ def _is_within_output_slice(
     return logical_slice.contains(candidate_logical_date)
 
 
-def build_processed_key(config: StandardizeConfig, logical_slice: LogicalSlice) -> str:
+def build_processed_key(
+    config: StandardizeConfig,
+    logical_slice: LogicalSlice,
+    object_name: str,
+) -> str:
     partition_components = build_partition_components(
-        partition_fields=default_partition_fields(config.output_slice_granularity),
+        partition_fields=config.processed_layout.partition_fields,
         logical_slice=logical_slice,
     )
     return join_storage_path(
-        base_prefix=config.processed_output_prefix,
+        base_prefix=config.processed_layout.base_prefix,
         partition_components=partition_components,
-        object_name=f"slice_id={logical_slice.run_id}.parquet",
+        path_suffix=config.processed_layout.path_suffix,
+        object_name=object_name,
     )
 
 
@@ -86,7 +99,11 @@ def _write_parquet_bytes(rows: list[dict]) -> bytes:
     return buffer.getvalue()
 
 
-def _list_landing_keys(config: StandardizeConfig, logical_slice: LogicalSlice, s3_client) -> list[str]:
+def _list_landing_keys(
+    config: StandardizeConfig,
+    logical_slice: LogicalSlice,
+    s3_client,
+) -> list[str]:
     prefix = build_landing_prefix(config, logical_slice)
     paginator = s3_client.get_paginator("list_objects_v2")
     keys: list[str] = []
@@ -99,18 +116,57 @@ def _list_landing_keys(config: StandardizeConfig, logical_slice: LogicalSlice, s
     return keys
 
 
+def _build_standardize_inputs(
+    config: StandardizeConfig,
+    logical_slice: LogicalSlice,
+    s3_client,
+) -> list[StandardizeInputObject]:
+    input_objects: list[StandardizeInputObject] = []
+    for key in _list_landing_keys(config, logical_slice, s3_client):
+        response = s3_client.get_object(Bucket=config.landing_bucket_name, Key=key)
+        metadata = response.get("Metadata", {})
+        raw_logical_date = metadata.get("logical_date")
+        if raw_logical_date is not None and not _is_within_output_slice(
+            logical_slice=logical_slice,
+            candidate_logical_date=parse_iso_datetime(raw_logical_date),
+        ):
+            continue
+
+        input_objects.append(
+            StandardizeInputObject(
+                key=key,
+                payload=response["Body"].read(),
+                metadata=metadata,
+            )
+        )
+    return input_objects
+
+
+def _resolve_output_object_name(
+    logical_slice: LogicalSlice,
+    output: StandardizeOutput,
+    output_index: int,
+    output_count: int,
+) -> str:
+    if output.suggested_object_name:
+        return output.suggested_object_name
+    if output_count == 1:
+        return f"slice_id={logical_slice.run_id}.parquet"
+    return f"slice_id={logical_slice.run_id}.part={output_index:02d}.parquet"
+
+
 def run_standardize(config: StandardizeConfig, s3_client) -> list[StandardizedSliceResult]:
-    parser = build_parser(config)
+    strategy = build_strategy(config)
     results: list[StandardizedSliceResult] = []
 
     for logical_slice in config.iter_slices():
-        landing_keys = _list_landing_keys(config, logical_slice, s3_client)
-        if not landing_keys:
+        input_objects = _build_standardize_inputs(config, logical_slice, s3_client)
+        if not input_objects:
             print(
                 json.dumps(
                     {
                         "event": "standardize_slice_skipped",
-                        "reason": "no_landing_objects",
+                        "reason": "no_input_objects",
                         "logical_date": logical_slice.logical_date.isoformat(),
                         "prefix": build_landing_prefix(config, logical_slice),
                     }
@@ -118,79 +174,75 @@ def run_standardize(config: StandardizeConfig, s3_client) -> list[StandardizedSl
             )
             continue
 
-        rows: list[dict] = []
-        matched_landing_key_count = 0
-        for key in landing_keys:
-            response = s3_client.get_object(Bucket=config.landing_bucket_name, Key=key)
-            metadata = response.get("Metadata", {})
-            raw_logical_date = metadata.get("logical_date")
-            if raw_logical_date is not None and not _is_within_output_slice(
-                logical_slice=logical_slice,
-                candidate_logical_date=parse_iso_datetime(raw_logical_date),
-            ):
-                continue
-            matched_landing_key_count += 1
-            body = response["Body"].read()
-            rows.extend(
-                parser.parse_landing_object(
-                    logical_slice=logical_slice,
-                    key=key,
-                    payload=body,
-                    metadata=metadata,
-                )
-            )
-
-        if not rows:
+        strategy_result = strategy.process_slice(
+            output_slice=logical_slice,
+            input_objects=input_objects,
+        )
+        if not strategy_result.outputs:
             print(
                 json.dumps(
                     {
                         "event": "standardize_slice_skipped",
-                        "reason": "no_rows_parsed",
+                        "reason": "no_outputs_generated",
                         "logical_date": logical_slice.logical_date.isoformat(),
-                        "landing_object_count": matched_landing_key_count,
+                        "input_object_count": len(input_objects),
                     }
                 )
             )
             continue
 
-        processed_key = build_processed_key(config, logical_slice)
-        body = _write_parquet_bytes(rows)
-        metadata = {
-            "workflow_name": config.workflow_name,
-            "source_adapter": config.source_adapter,
-            "logical_date": logical_slice.logical_date.astimezone(UTC).isoformat(),
-            "output_slice_granularity": config.output_slice_granularity,
-            "landing_object_count": str(matched_landing_key_count),
-            "row_count": str(len(rows)),
-            "standardized_at": datetime.now(UTC).isoformat(),
-        }
-        s3_client.put_object(
-            Bucket=config.processed_bucket_name,
-            Key=processed_key,
-            Body=body,
-            ContentType="application/octet-stream",
-            Metadata=metadata,
-        )
+        for output_index, output in enumerate(strategy_result.outputs, start=1):
+            if not output.rows:
+                continue
 
-        print(
-            json.dumps(
-                {
-                    "event": "processed_object_written",
-                    "bucket": config.processed_bucket_name,
-                    "key": processed_key,
-                    "logical_date": logical_slice.logical_date.isoformat(),
-                    "landing_object_count": matched_landing_key_count,
-                    "row_count": len(rows),
-                }
+            processed_key = build_processed_key(
+                config=config,
+                logical_slice=logical_slice,
+                object_name=_resolve_output_object_name(
+                    logical_slice=logical_slice,
+                    output=output,
+                    output_index=output_index,
+                    output_count=len(strategy_result.outputs),
+                ),
             )
-        )
-        results.append(
-            StandardizedSliceResult(
-                bucket_name=config.processed_bucket_name,
-                key=processed_key,
-                row_count=len(rows),
-                source_object_count=matched_landing_key_count,
+            body = _write_parquet_bytes(output.rows)
+            metadata = {
+                "workflow_name": config.workflow_name,
+                "standardize_strategy": config.standardize_strategy,
+                "logical_date": logical_slice.logical_date.astimezone(UTC).isoformat(),
+                "output_slice_granularity": config.output_slice_granularity,
+                "input_object_count": str(len(input_objects)),
+                "row_count": str(len(output.rows)),
+                "standardized_at": datetime.now(UTC).isoformat(),
+                **output.metadata,
+            }
+            s3_client.put_object(
+                Bucket=config.processed_bucket_name,
+                Key=processed_key,
+                Body=body,
+                ContentType="application/octet-stream",
+                Metadata=metadata,
             )
-        )
+
+            print(
+                json.dumps(
+                    {
+                        "event": "processed_object_written",
+                        "bucket": config.processed_bucket_name,
+                        "key": processed_key,
+                        "logical_date": logical_slice.logical_date.isoformat(),
+                        "input_object_count": len(input_objects),
+                        "row_count": len(output.rows),
+                    }
+                )
+            )
+            results.append(
+                StandardizedSliceResult(
+                    bucket_name=config.processed_bucket_name,
+                    key=processed_key,
+                    row_count=len(output.rows),
+                    source_object_count=len(input_objects),
+                )
+            )
 
     return results

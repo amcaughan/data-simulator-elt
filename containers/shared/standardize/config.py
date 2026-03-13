@@ -57,23 +57,23 @@ def _json_list_env(name: str, default: list[str]) -> tuple[str, ...]:
 @dataclass(frozen=True)
 class StandardizeConfig:
     workflow_name: str
-    source_adapter: str
+    standardize_strategy: str
     landing_bucket_name: str
     processed_bucket_name: str
     aws_region: str
     landing_slice_granularity: str
     landing_layout: StorageLayoutConfig
     output_slice_granularity: str
-    processed_output_prefix: str
+    processed_layout: StorageLayoutConfig
     landing_input_prefix: str | None
     slice_window: SliceWindowConfig
-    source_adapter_config: dict[str, Any]
+    standardize_strategy_config: dict[str, Any]
 
     @classmethod
     def from_env(cls) -> "StandardizeConfig":
         config = cls(
             workflow_name=_require_env("WORKFLOW_NAME"),
-            source_adapter=_require_env("SOURCE_ADAPTER"),
+            standardize_strategy=_require_env("STANDARDIZE_STRATEGY"),
             landing_bucket_name=_require_env("LANDING_BUCKET_NAME"),
             processed_bucket_name=_require_env("PROCESSED_BUCKET_NAME"),
             aws_region=_require_env("AWS_REGION"),
@@ -95,7 +95,18 @@ class StandardizeConfig:
             output_slice_granularity=os.environ.get(
                 "OUTPUT_SLICE_GRANULARITY", "day"
             ),
-            processed_output_prefix=os.environ.get("PROCESSED_OUTPUT_PREFIX", "raw"),
+            processed_layout=StorageLayoutConfig(
+                base_prefix=os.environ.get("PROCESSED_BASE_PREFIX", "raw"),
+                partition_fields=_json_list_env(
+                    "PROCESSED_PARTITION_FIELDS_JSON",
+                    list(
+                        default_partition_fields(
+                            os.environ.get("OUTPUT_SLICE_GRANULARITY", "day")
+                        )
+                    ),
+                ),
+                path_suffix=_json_list_env("PROCESSED_PATH_SUFFIX_JSON", []),
+            ),
             landing_input_prefix=os.environ.get("LANDING_INPUT_PREFIX"),
             slice_window=SliceWindowConfig(
                 slice_granularity=os.environ.get(
@@ -117,7 +128,7 @@ class StandardizeConfig:
                     "overlap",
                 ),
             ),
-            source_adapter_config=_json_env("SOURCE_ADAPTER_CONFIG_JSON"),
+            standardize_strategy_config=_json_env("STANDARDIZE_STRATEGY_CONFIG_JSON"),
         )
         config.validate()
         return config
@@ -145,6 +156,12 @@ class StandardizeConfig:
             raise ValueError(
                 "OUTPUT_SLICE_GRANULARITY cannot be finer than LANDING_SLICE_GRANULARITY"
             )
+        validate_partition_fields(self.processed_layout.partition_fields)
+        validate_partition_fields_for_granularity(
+            self.processed_layout.partition_fields,
+            self.output_slice_granularity,
+        )
+        validate_path_segments(self.processed_layout.path_suffix)
 
     @property
     def iter_slices(self, now=None) -> list[LogicalSlice]:

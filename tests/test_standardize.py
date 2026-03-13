@@ -63,7 +63,7 @@ class StandardizeTests(unittest.TestCase):
     def build_config(self, **overrides) -> "StandardizeConfig":
         values = {
             "workflow_name": "polling-generated-events",
-            "source_adapter": "simulator_api",
+            "standardize_strategy": "simulator_api",
             "landing_bucket_name": "landing-bucket",
             "processed_bucket_name": "processed-bucket",
             "aws_region": "us-east-2",
@@ -73,13 +73,16 @@ class StandardizeTests(unittest.TestCase):
                 partition_fields=("year", "month", "day", "hour"),
             ),
             "output_slice_granularity": "day",
-            "processed_output_prefix": "raw",
+            "processed_layout": StorageLayoutConfig(
+                base_prefix="raw",
+                partition_fields=("year", "month", "day"),
+            ),
             "landing_input_prefix": None,
             "slice_window": SliceWindowConfig.pinned(
                 slice_granularity="day",
                 pinned_at="2026-03-12",
             ),
-            "source_adapter_config": {"preset_id": "transaction_benchmark"},
+            "standardize_strategy_config": {"preset_id": "transaction_benchmark"},
         }
         values.update(overrides)
         config = StandardizeConfig(**values)
@@ -169,7 +172,11 @@ class StandardizeTests(unittest.TestCase):
                 "raw/year=2026/month=03/day=12/"
             )
         )
-        self.assertEqual(put_calls[0]["Metadata"]["landing_object_count"], "2")
+        self.assertEqual(put_calls[0]["Metadata"]["input_object_count"], "2")
+        self.assertEqual(
+            put_calls[0]["Metadata"]["standardize_strategy"],
+            "simulator_api",
+        )
 
 
 if __name__ == "__main__":
