@@ -15,6 +15,7 @@ from source_ingest.adapters.base import (
     FetchOutput,
     FetchResult,
     LiveFetchRequest,
+    ManualFetchRequest,
     MultiSliceFetchRequest,
     RequestedSlice,
     SliceFetchRequest,
@@ -26,7 +27,11 @@ from source_ingest.adapters.simulator_api import (
     build_generate_payload,
     derive_seed,
 )
-from source_ingest.config import IngestConfig
+from source_ingest.config import (
+    IngestConfig,
+    ManualPlanningConfig,
+    TemporalPlanningConfig,
+)
 from source_ingest.planning import FetchPlan, build_fetch_plan, build_storage_targets
 from source_ingest.runtime import build_landing_key, map_fetch_outputs, run_source_ingest
 
@@ -35,6 +40,7 @@ class FakeAdapter(SourceAdapter):
     capabilities = AdapterCapabilities(
         supported_request_types=(
             LiveFetchRequest,
+            ManualFetchRequest,
             SliceFetchRequest,
             MultiSliceFetchRequest,
         )
@@ -54,6 +60,13 @@ class FakeAdapter(SourceAdapter):
             "preset_id": "transaction_benchmark",
             "source_route": "/v1/presets/transaction_benchmark/generate",
         }
+        if isinstance(request, ManualFetchRequest):
+            return FetchResult.single(
+                body=b'{"row_count": 3, "rows": []}',
+                content_type="application/json",
+                metadata=metadata,
+                suggested_object_name="adapter-suggested.json",
+            )
         if isinstance(request, MultiSliceFetchRequest):
             return FetchResult(
                 outputs=tuple(
@@ -128,13 +141,16 @@ class FakeS3Client:
 
 class SourceIngestTests(unittest.TestCase):
     def build_config(self, **overrides) -> IngestConfig:
+        slice_window_override = overrides.pop("slice_window", None)
+        landing_layout_override = overrides.pop("landing_layout", None)
         values = {
             "workflow_name": "polling-generated-events",
             "source_adapter": "simulator_api",
             "landing_bucket_name": "landing-bucket",
             "aws_region": "us-east-2",
-            "slice_window": None,
-            "landing_layout": None,
+            "planning_mode": "temporal",
+            "temporal_config": None,
+            "manual_config": None,
             "source_adapter_config": {
                 "preset_id": "transaction_benchmark",
                 "row_count": 250,
@@ -143,23 +159,25 @@ class SourceIngestTests(unittest.TestCase):
             },
         }
         values.update(overrides)
-        if values["slice_window"] is None:
+        if values["planning_mode"] == "temporal" and values["temporal_config"] is None:
             from common.slices import SliceWindowConfig
 
-            values["slice_window"] = SliceWindowConfig(
+            slice_window = slice_window_override or SliceWindowConfig.current(
                 slice_granularity="day",
-                mode="live_hit",
-                logical_date=None,
-                start_at=None,
-                end_at=None,
-                backfill_count=None,
             )
-        if values["landing_layout"] is None:
-            values["landing_layout"] = StorageLayoutConfig(
-                base_prefix=None,
-                partition_fields=default_partition_fields(
-                    values["slice_window"].slice_granularity
+            values["temporal_config"] = TemporalPlanningConfig(
+                slice_window=slice_window,
+                landing_layout=landing_layout_override
+                or StorageLayoutConfig(
+                    base_prefix=None,
+                    partition_fields=default_partition_fields(slice_window.slice_granularity),
                 ),
+            )
+        if values["planning_mode"] == "manual" and values["manual_config"] is None:
+            values["manual_config"] = ManualPlanningConfig(
+                request_payload={},
+                storage_prefix="client=acme/emergency",
+                object_name=None,
             )
         config = IngestConfig(**values)
         config.validate()
@@ -169,13 +187,8 @@ class SourceIngestTests(unittest.TestCase):
         from common.slices import SliceWindowConfig
 
         config = self.build_config(
-            slice_window=SliceWindowConfig(
+            slice_window=SliceWindowConfig.current(
                 slice_granularity="hour",
-                mode="live_hit",
-                logical_date=None,
-                start_at=None,
-                end_at=None,
-                backfill_count=None,
             )
         )
 
@@ -192,13 +205,9 @@ class SourceIngestTests(unittest.TestCase):
         from common.slices import SliceWindowConfig
 
         config = self.build_config(
-            slice_window=SliceWindowConfig(
+            slice_window=SliceWindowConfig.pinned(
                 slice_granularity="day",
-                mode="live_hit",
-                logical_date="2026-03-12",
-                start_at=None,
-                end_at=None,
-                backfill_count=None,
+                pinned_at="2026-03-12",
             )
         )
 
@@ -219,13 +228,10 @@ class SourceIngestTests(unittest.TestCase):
         from common.slices import SliceWindowConfig
 
         config = self.build_config(
-            slice_window=SliceWindowConfig(
+            slice_window=SliceWindowConfig.relative(
                 slice_granularity="day",
-                mode="backfill",
-                logical_date=None,
-                start_at=None,
-                end_at=None,
-                backfill_count=3,
+                relative_count=3,
+                relative_direction="backward",
             )
         )
 
@@ -240,6 +246,28 @@ class SourceIngestTests(unittest.TestCase):
                 "2026-03-11T00:00:00+00:00",
                 "2026-03-12T00:00:00+00:00",
             ],
+        )
+
+    def test_manual_mode_builds_manual_request_and_storage_target(self):
+        config = self.build_config(
+            planning_mode="manual",
+            temporal_config=None,
+            manual_config=ManualPlanningConfig(
+                request_payload={"row_count": 10},
+                storage_prefix="client=acme/emergency",
+                object_name=None,
+            ),
+        )
+
+        plan = build_fetch_plan(config)
+
+        self.assertIsInstance(plan.request, ManualFetchRequest)
+        self.assertEqual(plan.request.payload, {"row_count": 10})
+        self.assertEqual(len(plan.storage_targets), 1)
+        self.assertIsNone(plan.storage_targets[0].logical_slice)
+        self.assertEqual(
+            plan.storage_targets[0].storage_prefix,
+            "client=acme/emergency",
         )
 
     def test_seed_derivation_is_deterministic(self):
@@ -318,13 +346,10 @@ class SourceIngestTests(unittest.TestCase):
         from common.slices import SliceWindowConfig
 
         config = self.build_config(
-            slice_window=SliceWindowConfig(
+            slice_window=SliceWindowConfig.relative(
                 slice_granularity="day",
-                mode="backfill",
-                logical_date=None,
-                start_at=None,
-                end_at=None,
-                backfill_count=3,
+                relative_count=3,
+                relative_direction="backward",
             )
         )
         storage_targets = build_storage_targets(
@@ -366,13 +391,9 @@ class SourceIngestTests(unittest.TestCase):
         from common.slices import SliceWindowConfig
 
         config = self.build_config(
-            slice_window=SliceWindowConfig(
+            slice_window=SliceWindowConfig.pinned(
                 slice_granularity="hour",
-                mode="live_hit",
-                logical_date="2026-03-12T08:00:00Z",
-                start_at=None,
-                end_at=None,
-                backfill_count=None,
+                pinned_at="2026-03-12T08:00:00Z",
             )
         )
         storage_target = build_storage_targets(config)[0]
@@ -386,13 +407,9 @@ class SourceIngestTests(unittest.TestCase):
         from common.slices import SliceWindowConfig
 
         config = self.build_config(
-            slice_window=SliceWindowConfig(
+            slice_window=SliceWindowConfig.pinned(
                 slice_granularity="day",
-                mode="live_hit",
-                logical_date="2026-03-12",
-                start_at=None,
-                end_at=None,
-                backfill_count=None,
+                pinned_at="2026-03-12",
             )
         )
 
@@ -408,13 +425,9 @@ class SourceIngestTests(unittest.TestCase):
         from common.slices import SliceWindowConfig
 
         config = self.build_config(
-            slice_window=SliceWindowConfig(
+            slice_window=SliceWindowConfig.pinned(
                 slice_granularity="day",
-                mode="live_hit",
-                logical_date="2026-03-12",
-                start_at=None,
-                end_at=None,
-                backfill_count=None,
+                pinned_at="2026-03-12",
             )
         )
 
@@ -434,13 +447,9 @@ class SourceIngestTests(unittest.TestCase):
                 base_prefix="client=acme/project=finance",
                 partition_fields=("year_month",),
             ),
-            slice_window=SliceWindowConfig(
+            slice_window=SliceWindowConfig.pinned(
                 slice_granularity="hour",
-                mode="live_hit",
-                logical_date="2026-03-12T08:00:00Z",
-                start_at=None,
-                end_at=None,
-                backfill_count=None,
+                pinned_at="2026-03-12T08:00:00Z",
             ),
         )
 
@@ -462,13 +471,9 @@ class SourceIngestTests(unittest.TestCase):
                 base_prefix="client=acme",
                 partition_fields=("year_quarter", "date"),
             ),
-            slice_window=SliceWindowConfig(
+            slice_window=SliceWindowConfig.pinned(
                 slice_granularity="day",
-                mode="live_hit",
-                logical_date="2026-03-12",
-                start_at=None,
-                end_at=None,
-                backfill_count=None,
+                pinned_at="2026-03-12",
             ),
         )
 
@@ -489,13 +494,9 @@ class SourceIngestTests(unittest.TestCase):
                 partition_fields=("year", "month", "day"),
                 path_suffix=("api=test_api", "files"),
             ),
-            slice_window=SliceWindowConfig(
+            slice_window=SliceWindowConfig.pinned(
                 slice_granularity="day",
-                mode="live_hit",
-                logical_date="2026-03-12",
-                start_at=None,
-                end_at=None,
-                backfill_count=None,
+                pinned_at="2026-03-12",
             ),
         )
 
@@ -506,6 +507,26 @@ class SourceIngestTests(unittest.TestCase):
         )
 
         self.assertIn("client=acme/year=2026/month=03/day=12/api=test_api/files/", key)
+
+    def test_build_landing_key_uses_manual_storage_prefix(self):
+        config = self.build_config(
+            planning_mode="manual",
+            temporal_config=None,
+            manual_config=ManualPlanningConfig(
+                request_payload={},
+                storage_prefix="client=acme/emergency/manual-run",
+                object_name=None,
+            ),
+        )
+
+        key = build_landing_key(
+            config,
+            build_storage_targets(config)[0],
+            "application/json",
+        )
+
+        self.assertTrue(key.startswith("client=acme/emergency/manual-run/"))
+        self.assertTrue(key.endswith(".json"))
 
     def test_config_rejects_path_suffix_segments_with_slashes(self):
         with self.assertRaisesRegex(ValueError, "Path suffix segments"):
@@ -526,13 +547,22 @@ class SourceIngestTests(unittest.TestCase):
                     base_prefix="client=acme",
                     partition_fields=("year_quarter", "day"),
                 ),
-                slice_window=SliceWindowConfig(
+                slice_window=SliceWindowConfig.relative(
                     slice_granularity="quarter",
-                    mode="backfill",
-                    logical_date=None,
-                    start_at=None,
-                    end_at=None,
-                    backfill_count=2,
+                    relative_count=2,
+                    relative_direction="backward",
+                ),
+            )
+
+    def test_config_rejects_manual_object_names_with_slashes(self):
+        with self.assertRaisesRegex(ValueError, "MANUAL_OBJECT_NAME"):
+            self.build_config(
+                planning_mode="manual",
+                temporal_config=None,
+                manual_config=ManualPlanningConfig(
+                    request_payload={},
+                    storage_prefix="client=acme/emergency",
+                    object_name="bad/path.json",
                 ),
             )
 
@@ -540,13 +570,9 @@ class SourceIngestTests(unittest.TestCase):
         from common.slices import SliceWindowConfig
 
         config = self.build_config(
-            slice_window=SliceWindowConfig(
+            slice_window=SliceWindowConfig.pinned(
                 slice_granularity="day",
-                mode="live_hit",
-                logical_date="2026-03-12",
-                start_at=None,
-                end_at=None,
-                backfill_count=None,
+                pinned_at="2026-03-12",
             )
         )
         s3_client = FakeS3Client()
@@ -576,10 +602,12 @@ class SourceIngestTests(unittest.TestCase):
             "/v1/presets/transaction_benchmark/generate",
         )
         self.assertEqual(payload_call["Metadata"]["row_count"], "3")
+        self.assertEqual(payload_call["Metadata"]["slice_selector_mode"], "pinned")
         manifest = json.loads(manifest_call["Body"].decode("utf-8"))
         self.assertEqual(manifest["request"]["kind"], "slice")
         self.assertEqual(manifest["storage"]["payload_key"], payload_call["Key"])
         self.assertEqual(manifest["storage"]["manifest_key"], manifest_call["Key"])
+        self.assertEqual(manifest["storage"]["slice_selector_mode"], "pinned")
         self.assertEqual(
             manifest["storage"]["partition_fields"],
             ["year", "month", "day"],
@@ -594,17 +622,83 @@ class SourceIngestTests(unittest.TestCase):
             "/v1/presets/transaction_benchmark/generate",
         )
 
+    def test_run_source_ingest_manual_mode_uses_adapter_suggested_name(self):
+        config = self.build_config(
+            planning_mode="manual",
+            temporal_config=None,
+            manual_config=ManualPlanningConfig(
+                request_payload={},
+                storage_prefix="client=acme/emergency",
+                object_name=None,
+            ),
+        )
+        s3_client = FakeS3Client()
+
+        with (
+            patch("source_ingest.runtime.build_adapter", return_value=FakeAdapter()),
+            patch("builtins.print"),
+        ):
+            results = run_source_ingest(config=config, s3_client=s3_client)
+
+        self.assertEqual(len(results), 1)
+        payload_call = next(
+            call for call in s3_client.calls if not call["Key"].endswith(".manifest.json")
+        )
+        manifest_call = next(
+            call for call in s3_client.calls if call["Key"].endswith(".manifest.json")
+        )
+        self.assertTrue(
+            payload_call["Key"].startswith("client=acme/emergency/adapter-suggested.json")
+        )
+        self.assertTrue(
+            manifest_call["Key"].startswith(
+                "client=acme/emergency/adapter-suggested.json.manifest.json"
+            )
+        )
+        self.assertEqual(payload_call["Metadata"]["planning_mode"], "manual")
+        self.assertNotIn("logical_date", payload_call["Metadata"])
+        manifest = json.loads(manifest_call["Body"].decode("utf-8"))
+        self.assertEqual(manifest["planning_mode"], "manual")
+        self.assertEqual(manifest["request"]["kind"], "manual")
+        self.assertEqual(manifest["storage"]["mode"], "manual")
+        self.assertEqual(
+            manifest["storage"]["resolved_storage_prefix"],
+            "client=acme/emergency",
+        )
+
+    def test_run_source_ingest_manual_mode_prefers_runner_object_name_override(self):
+        config = self.build_config(
+            planning_mode="manual",
+            temporal_config=None,
+            manual_config=ManualPlanningConfig(
+                request_payload={},
+                storage_prefix="client=acme/emergency",
+                object_name="runner-override.json",
+            ),
+        )
+        s3_client = FakeS3Client()
+
+        with (
+            patch("source_ingest.runtime.build_adapter", return_value=FakeAdapter()),
+            patch("builtins.print"),
+        ):
+            run_source_ingest(config=config, s3_client=s3_client)
+
+        payload_call = next(
+            call for call in s3_client.calls if not call["Key"].endswith(".manifest.json")
+        )
+        self.assertTrue(
+            payload_call["Key"].startswith("client=acme/emergency/runner-override.json")
+        )
+
     def test_run_source_ingest_writes_multiple_objects_for_multi_slice_request(self):
         from common.slices import SliceWindowConfig
 
         config = self.build_config(
-            slice_window=SliceWindowConfig(
+            slice_window=SliceWindowConfig.relative(
                 slice_granularity="day",
-                mode="backfill",
-                logical_date=None,
-                start_at=None,
-                end_at=None,
-                backfill_count=2,
+                relative_count=2,
+                relative_direction="backward",
             ),
         )
         s3_client = FakeS3Client()
@@ -631,13 +725,10 @@ class SourceIngestTests(unittest.TestCase):
 
         config = self.build_config(
             source_adapter="unsupported_source",
-            slice_window=SliceWindowConfig(
+            slice_window=SliceWindowConfig.relative(
                 slice_granularity="day",
-                mode="backfill",
-                logical_date=None,
-                start_at=None,
-                end_at=None,
-                backfill_count=2,
+                relative_count=2,
+                relative_direction="backward",
             ),
         )
 

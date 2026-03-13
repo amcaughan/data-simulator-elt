@@ -7,6 +7,7 @@ from common.slices import LogicalSlice
 from common.storage_layout import PartitionComponent, build_partition_components
 from source_ingest.adapters.base import (
     LiveFetchRequest,
+    ManualFetchRequest,
     MultiSliceFetchRequest,
     RequestedSlice,
     SliceFetchRequest,
@@ -17,9 +18,11 @@ from source_ingest.config import IngestConfig
 
 @dataclass(frozen=True)
 class StorageTarget:
-    logical_slice: LogicalSlice
-    partition_components: tuple[PartitionComponent, ...]
+    logical_slice: LogicalSlice | None
     object_stem: str
+    partition_components: tuple[PartitionComponent, ...] = ()
+    storage_prefix: str | None = None
+    object_name_override: str | None = None
 
 
 @dataclass(frozen=True)
@@ -29,6 +32,15 @@ class FetchPlan:
 
 
 def build_storage_targets(config: IngestConfig, now=None) -> tuple[StorageTarget, ...]:
+    if config.is_manual:
+        return (
+            StorageTarget(
+                logical_slice=None,
+                object_stem=f"run_id={uuid4()}",
+                storage_prefix=config.manual.storage_prefix or "",
+                object_name_override=config.manual.object_name,
+            ),
+        )
     return tuple(
         build_storage_target(config, logical_slice)
         for logical_slice in config.slice_window.iter_slices(now)
@@ -58,13 +70,18 @@ def build_requested_slice(logical_slice: LogicalSlice) -> RequestedSlice:
 
 def build_fetch_plan(config: IngestConfig, now=None) -> FetchPlan:
     storage_targets = build_storage_targets(config, now)
-    if config.mode == "live_hit" and config.slice_window.logical_date is None:
+    if config.is_manual:
+        return FetchPlan(
+            request=ManualFetchRequest(payload=dict(config.manual.request_payload)),
+            storage_targets=storage_targets,
+        )
+    if config.slice_selector_mode == "current":
         return FetchPlan(
             request=LiveFetchRequest(),
             storage_targets=storage_targets,
         )
 
-    if config.mode == "live_hit":
+    if config.slice_selector_mode == "pinned":
         return FetchPlan(
             request=SliceFetchRequest(
                 slice=build_requested_slice(storage_targets[0].logical_slice)

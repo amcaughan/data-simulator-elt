@@ -15,16 +15,22 @@ Required:
 Options:
   --env NAME                   Environment name. Default: dev
   --step NAME                  source-ingest | standardize | both. Default: both
-  --mode NAME                  live_hit | backfill. Defaults to live_hit,
-                               or backfill if a range/backfill flag is supplied.
-  --logical-date ISO           Logical date for a one-off live hit.
-  --start-at ISO               Backfill range start.
-  --end-at ISO                 Backfill range end.
-  --backfill-count N           Backfill the previous N logical slices.
+  --planning-mode NAME         temporal | manual. Default: temporal
+  --slice-selector-mode NAME   current | pinned | range | relative.
+  --slice-pinned-at ISO        Pinned slice anchor for selector mode pinned.
+  --slice-range-start-at ISO   Range start for selector mode range.
+  --slice-range-end-at ISO     Range end for selector mode range.
+  --slice-relative-count N     Slice count for selector mode relative.
+  --slice-relative-direction D backward | forward. Default: backward
+  --slice-relative-anchor-at I Optional anchor timestamp for selector mode relative.
   --slice-alignment NAME       floor | ceil | strict. Default: floor
   --slice-range-policy NAME    overlap | contained | strict. Default: overlap
   --adapter-config-json JSON   Override SOURCE_ADAPTER_CONFIG_JSON for the run.
   --adapter-config-file PATH   Read adapter config override from a file.
+  --manual-request-json JSON   Manual request payload for source-ingest manual mode.
+  --manual-request-file PATH   Read manual request payload from a file.
+  --manual-storage-prefix P    Manual storage prefix for source-ingest manual mode.
+  --manual-object-name NAME    Optional manual object name override.
   --landing-base-prefix PATH   Override LANDING_BASE_PREFIX for the run.
   --landing-partitions JSON    Override LANDING_PARTITION_FIELDS_JSON for the run.
   --landing-path-suffix JSON   Override LANDING_PATH_SUFFIX_JSON for the run.
@@ -39,13 +45,14 @@ Examples:
 
   ./scripts/run-scheduled-workflow.sh \
     --workflow polling-generated-events \
-    --mode backfill \
-    --backfill-count 7
+    --slice-selector-mode relative \
+    --slice-relative-count 7
 
   ./scripts/run-scheduled-workflow.sh \
     --workflow batch-file-delivery \
     --step source-ingest \
-    --logical-date 2026-03-01
+    --slice-selector-mode pinned \
+    --slice-pinned-at 2026-03-01
 EOF
 }
 
@@ -55,15 +62,22 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 ENVIRONMENT="dev"
 WORKFLOW_NAME=""
 STEP="both"
-MODE=""
-LOGICAL_DATE=""
-START_AT=""
-END_AT=""
-BACKFILL_COUNT=""
+PLANNING_MODE="temporal"
+SLICE_SELECTOR_MODE=""
+SLICE_PINNED_AT=""
+SLICE_RANGE_START_AT=""
+SLICE_RANGE_END_AT=""
+SLICE_RELATIVE_COUNT=""
+SLICE_RELATIVE_DIRECTION=""
+SLICE_RELATIVE_ANCHOR_AT=""
 SLICE_ALIGNMENT_POLICY=""
 SLICE_RANGE_POLICY=""
 ADAPTER_CONFIG_JSON=""
 ADAPTER_CONFIG_FILE=""
+MANUAL_REQUEST_JSON=""
+MANUAL_REQUEST_FILE=""
+MANUAL_STORAGE_PREFIX=""
+MANUAL_OBJECT_NAME=""
 LANDING_BASE_PREFIX=""
 LANDING_PARTITIONS_JSON=""
 LANDING_PATH_SUFFIX_JSON=""
@@ -85,24 +99,36 @@ while [[ $# -gt 0 ]]; do
       STEP="${2:-}"
       shift 2
       ;;
-    --mode)
-      MODE="${2:-}"
+    --planning-mode)
+      PLANNING_MODE="${2:-}"
       shift 2
       ;;
-    --logical-date)
-      LOGICAL_DATE="${2:-}"
+    --slice-selector-mode)
+      SLICE_SELECTOR_MODE="${2:-}"
       shift 2
       ;;
-    --start-at)
-      START_AT="${2:-}"
+    --slice-pinned-at)
+      SLICE_PINNED_AT="${2:-}"
       shift 2
       ;;
-    --end-at)
-      END_AT="${2:-}"
+    --slice-range-start-at)
+      SLICE_RANGE_START_AT="${2:-}"
       shift 2
       ;;
-    --backfill-count)
-      BACKFILL_COUNT="${2:-}"
+    --slice-range-end-at)
+      SLICE_RANGE_END_AT="${2:-}"
+      shift 2
+      ;;
+    --slice-relative-count)
+      SLICE_RELATIVE_COUNT="${2:-}"
+      shift 2
+      ;;
+    --slice-relative-direction)
+      SLICE_RELATIVE_DIRECTION="${2:-}"
+      shift 2
+      ;;
+    --slice-relative-anchor-at)
+      SLICE_RELATIVE_ANCHOR_AT="${2:-}"
       shift 2
       ;;
     --slice-alignment)
@@ -119,6 +145,22 @@ while [[ $# -gt 0 ]]; do
       ;;
     --adapter-config-file)
       ADAPTER_CONFIG_FILE="${2:-}"
+      shift 2
+      ;;
+    --manual-request-json)
+      MANUAL_REQUEST_JSON="${2:-}"
+      shift 2
+      ;;
+    --manual-request-file)
+      MANUAL_REQUEST_FILE="${2:-}"
+      shift 2
+      ;;
+    --manual-storage-prefix)
+      MANUAL_STORAGE_PREFIX="${2:-}"
+      shift 2
+      ;;
+    --manual-object-name)
+      MANUAL_OBJECT_NAME="${2:-}"
       shift 2
       ;;
     --landing-base-prefix)
@@ -176,16 +218,46 @@ if [[ -n "$ADAPTER_CONFIG_JSON" && -n "$ADAPTER_CONFIG_FILE" ]]; then
   exit 1
 fi
 
+if [[ -n "$MANUAL_REQUEST_JSON" && -n "$MANUAL_REQUEST_FILE" ]]; then
+  echo "Use only one of --manual-request-json or --manual-request-file" >&2
+  exit 1
+fi
+
 if [[ -n "$ADAPTER_CONFIG_FILE" ]]; then
   ADAPTER_CONFIG_JSON="$(cat "$ADAPTER_CONFIG_FILE")"
 fi
 
-if [[ -z "$MODE" ]]; then
-  if [[ -n "$START_AT" || -n "$END_AT" || -n "$BACKFILL_COUNT" ]]; then
-    MODE="backfill"
+if [[ -n "$MANUAL_REQUEST_FILE" ]]; then
+  MANUAL_REQUEST_JSON="$(cat "$MANUAL_REQUEST_FILE")"
+fi
+
+case "$PLANNING_MODE" in
+  temporal|manual) ;;
+  *)
+    echo "--planning-mode must be one of: temporal, manual" >&2
+    exit 1
+    ;;
+esac
+
+if [[ "$PLANNING_MODE" == "manual" && "$STEP" != "source-ingest" ]]; then
+  echo "--planning-mode manual only supports --step source-ingest" >&2
+  exit 1
+fi
+
+if [[ "$PLANNING_MODE" == "temporal" && -z "$SLICE_SELECTOR_MODE" ]]; then
+  if [[ -n "$SLICE_RANGE_START_AT" || -n "$SLICE_RANGE_END_AT" ]]; then
+    SLICE_SELECTOR_MODE="range"
+  elif [[ -n "$SLICE_RELATIVE_COUNT" ]]; then
+    SLICE_SELECTOR_MODE="relative"
+  elif [[ -n "$SLICE_PINNED_AT" ]]; then
+    SLICE_SELECTOR_MODE="pinned"
   else
-    MODE="live_hit"
+    SLICE_SELECTOR_MODE="current"
   fi
+fi
+
+if [[ "$PLANNING_MODE" == "temporal" && "$SLICE_SELECTOR_MODE" == "relative" && -z "$SLICE_RELATIVE_DIRECTION" ]]; then
+  SLICE_RELATIVE_DIRECTION="backward"
 fi
 
 STACK_DIR="${REPO_ROOT}/infra/terragrunt/live/${ENVIRONMENT}/${WORKFLOW_NAME}"
@@ -228,14 +300,20 @@ run_step() {
     STEP_NAME="$step_name" \
     TASK_OUTPUT_NAME="$task_output_name" \
     CONTAINER_NAME="$container_name" \
-    MODE="$MODE" \
-    LOGICAL_DATE="$LOGICAL_DATE" \
-    START_AT="$START_AT" \
-    END_AT="$END_AT" \
-    BACKFILL_COUNT="$BACKFILL_COUNT" \
+    PLANNING_MODE="$PLANNING_MODE" \
+    SLICE_SELECTOR_MODE="$SLICE_SELECTOR_MODE" \
+    SLICE_PINNED_AT="$SLICE_PINNED_AT" \
+    SLICE_RANGE_START_AT="$SLICE_RANGE_START_AT" \
+    SLICE_RANGE_END_AT="$SLICE_RANGE_END_AT" \
+    SLICE_RELATIVE_COUNT="$SLICE_RELATIVE_COUNT" \
+    SLICE_RELATIVE_DIRECTION="$SLICE_RELATIVE_DIRECTION" \
+    SLICE_RELATIVE_ANCHOR_AT="$SLICE_RELATIVE_ANCHOR_AT" \
     SLICE_ALIGNMENT_POLICY="$SLICE_ALIGNMENT_POLICY" \
     SLICE_RANGE_POLICY="$SLICE_RANGE_POLICY" \
     ADAPTER_CONFIG_JSON="$ADAPTER_CONFIG_JSON" \
+    MANUAL_REQUEST_JSON="$MANUAL_REQUEST_JSON" \
+    MANUAL_STORAGE_PREFIX="$MANUAL_STORAGE_PREFIX" \
+    MANUAL_OBJECT_NAME="$MANUAL_OBJECT_NAME" \
     LANDING_BASE_PREFIX="$LANDING_BASE_PREFIX" \
     LANDING_PARTITIONS_JSON="$LANDING_PARTITIONS_JSON" \
     LANDING_PATH_SUFFIX_JSON="$LANDING_PATH_SUFFIX_JSON" \
@@ -264,18 +342,40 @@ security_group = output_value("network_security_group_id")
 aws_region = os.environ.get("AWS_REGION_OVERRIDE") or output_value("aws_region")
 step_name = os.environ["STEP_NAME"]
 container_name = os.environ["CONTAINER_NAME"]
+planning_mode = os.environ.get("PLANNING_MODE", "temporal")
 
-env = [{"name": "MODE", "value": os.environ["MODE"]}]
+env = []
 
-for key in ("LOGICAL_DATE", "START_AT", "END_AT", "BACKFILL_COUNT"):
-    value = os.environ.get(key)
-    if value:
-        env.append({"name": key, "value": value})
+if step_name == "source-ingest":
+    env.append({"name": "PLANNING_MODE", "value": planning_mode})
 
-for key in ("SLICE_ALIGNMENT_POLICY", "SLICE_RANGE_POLICY"):
-    value = os.environ.get(key)
-    if value:
-        env.append({"name": key, "value": value})
+if planning_mode == "manual":
+    manual_request_json = os.environ.get("MANUAL_REQUEST_JSON")
+    if manual_request_json:
+        env.append({"name": "MANUAL_REQUEST_JSON", "value": manual_request_json})
+    for key in ("MANUAL_STORAGE_PREFIX", "MANUAL_OBJECT_NAME"):
+        value = os.environ.get(key)
+        if value:
+            env.append({"name": key, "value": value})
+else:
+    env.append({"name": "SLICE_SELECTOR_MODE", "value": os.environ["SLICE_SELECTOR_MODE"]})
+
+    for key in (
+        "SLICE_PINNED_AT",
+        "SLICE_RANGE_START_AT",
+        "SLICE_RANGE_END_AT",
+        "SLICE_RELATIVE_COUNT",
+        "SLICE_RELATIVE_DIRECTION",
+        "SLICE_RELATIVE_ANCHOR_AT",
+    ):
+        value = os.environ.get(key)
+        if value:
+            env.append({"name": key, "value": value})
+
+    for key in ("SLICE_ALIGNMENT_POLICY", "SLICE_RANGE_POLICY"):
+        value = os.environ.get(key)
+        if value:
+            env.append({"name": key, "value": value})
 
 adapter_config_json = os.environ.get("ADAPTER_CONFIG_JSON")
 if adapter_config_json:
@@ -286,17 +386,18 @@ if adapter_config_json:
         }
     )
 
-for env_name in (
-    "LANDING_BASE_PREFIX",
-    "LANDING_PARTITION_FIELDS_JSON",
-    "LANDING_PATH_SUFFIX_JSON",
-):
-    if env_name == "LANDING_PARTITION_FIELDS_JSON":
-        value = os.environ.get("LANDING_PARTITIONS_JSON")
-    else:
-        value = os.environ.get(env_name)
-    if value:
-        env.append({"name": env_name, "value": value})
+if planning_mode == "temporal":
+    for env_name in (
+        "LANDING_BASE_PREFIX",
+        "LANDING_PARTITION_FIELDS_JSON",
+        "LANDING_PATH_SUFFIX_JSON",
+    ):
+        if env_name == "LANDING_PARTITION_FIELDS_JSON":
+            value = os.environ.get("LANDING_PARTITIONS_JSON")
+        else:
+            value = os.environ.get(env_name)
+        if value:
+            env.append({"name": env_name, "value": value})
 
 if step_name == "standardize":
     landing_input_prefix = os.environ.get("LANDING_INPUT_PREFIX")

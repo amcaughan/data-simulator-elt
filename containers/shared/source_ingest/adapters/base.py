@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import TYPE_CHECKING, ClassVar, Literal, TypeAlias
+from typing import TYPE_CHECKING, Any, ClassVar, Literal, TypeAlias
 
 if TYPE_CHECKING:
     from source_ingest.config import IngestConfig
@@ -23,6 +23,12 @@ class LiveFetchRequest:
 
 
 @dataclass(frozen=True)
+class ManualFetchRequest:
+    payload: dict[str, Any]
+    kind: Literal["manual"] = field(init=False, default="manual")
+
+
+@dataclass(frozen=True)
 class SliceFetchRequest:
     slice: RequestedSlice
     kind: Literal["slice"] = field(init=False, default="slice")
@@ -34,9 +40,14 @@ class MultiSliceFetchRequest:
     kind: Literal["multi_slice"] = field(init=False, default="multi_slice")
 
 
-SourceFetchRequest: TypeAlias = LiveFetchRequest | SliceFetchRequest | MultiSliceFetchRequest
+SourceFetchRequest: TypeAlias = (
+    LiveFetchRequest | ManualFetchRequest | SliceFetchRequest | MultiSliceFetchRequest
+)
 SourceFetchRequestType: TypeAlias = (
-    type[LiveFetchRequest] | type[SliceFetchRequest] | type[MultiSliceFetchRequest]
+    type[LiveFetchRequest]
+    | type[ManualFetchRequest]
+    | type[SliceFetchRequest]
+    | type[MultiSliceFetchRequest]
 )
 
 
@@ -51,6 +62,7 @@ class FetchOutput:
     content_type: str
     metadata: dict[str, str] = field(default_factory=dict)
     logical_date: datetime | None = None
+    suggested_object_name: str | None = None
 
 
 @dataclass(frozen=True)
@@ -64,6 +76,7 @@ class FetchResult:
         content_type: str,
         metadata: dict[str, str] | None = None,
         logical_date: datetime | None = None,
+        suggested_object_name: str | None = None,
     ) -> "FetchResult":
         return cls(
             outputs=(
@@ -72,6 +85,7 @@ class FetchResult:
                     content_type=content_type,
                     metadata=metadata or {},
                     logical_date=logical_date,
+                    suggested_object_name=suggested_object_name,
                 ),
             )
         )

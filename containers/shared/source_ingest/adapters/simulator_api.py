@@ -15,6 +15,7 @@ from source_ingest.adapters.base import (
     FetchOutput,
     FetchResult,
     LiveFetchRequest,
+    ManualFetchRequest,
     MultiSliceFetchRequest,
     RequestedSlice,
     SliceFetchRequest,
@@ -130,6 +131,7 @@ class SimulatorApiAdapter(SourceAdapter):
     capabilities = AdapterCapabilities(
         supported_request_types=(
             LiveFetchRequest,
+            ManualFetchRequest,
             SliceFetchRequest,
             MultiSliceFetchRequest,
         )
@@ -165,6 +167,8 @@ class SimulatorApiAdapter(SourceAdapter):
     def _fetch(self, request: SourceFetchRequest) -> FetchResult:
         if isinstance(request, LiveFetchRequest):
             return self._fetch_live(request)
+        if isinstance(request, ManualFetchRequest):
+            return self._fetch_manual(request)
         if isinstance(request, SliceFetchRequest):
             return self._fetch_slice(request)
         if isinstance(request, MultiSliceFetchRequest):
@@ -173,6 +177,13 @@ class SimulatorApiAdapter(SourceAdapter):
 
     def _fetch_live(self, request: LiveFetchRequest) -> FetchResult:
         output = self._fetch_generate_output(logical_date=None)
+        return FetchResult(outputs=(output,))
+
+    def _fetch_manual(self, request: ManualFetchRequest) -> FetchResult:
+        output = self._fetch_generate_output(
+            logical_date=None,
+            manual_payload=request.payload,
+        )
         return FetchResult(outputs=(output,))
 
     def _fetch_slice(self, request: SliceFetchRequest) -> FetchResult:
@@ -187,13 +198,20 @@ class SimulatorApiAdapter(SourceAdapter):
             )
         )
 
-    def _fetch_generate_output(self, logical_date: datetime | None) -> FetchOutput:
+    def _fetch_generate_output(
+        self,
+        logical_date: datetime | None,
+        manual_payload: dict[str, Any] | None = None,
+    ) -> FetchOutput:
         route = f"/v1/presets/{self.adapter_config.preset_id}/generate"
         url = urllib.parse.urljoin(
             self.runtime_config.source_base_url.rstrip("/") + "/",
             route.lstrip("/"),
         )
-        payload = self._build_generate_payload(logical_date)
+        payload = self._build_generate_payload(
+            logical_date,
+            manual_payload=manual_payload,
+        )
         response_bytes, content_type = self._signed_post(url, payload)
         parsed = json.loads(response_bytes.decode("utf-8"))
         return FetchOutput(
@@ -201,6 +219,7 @@ class SimulatorApiAdapter(SourceAdapter):
             content_type=content_type,
             metadata=self._build_response_metadata(parsed=parsed, route=route),
             logical_date=logical_date,
+            suggested_object_name=self._resolve_suggested_object_name(manual_payload),
         )
 
     def _build_response_metadata(
@@ -217,8 +236,13 @@ class SimulatorApiAdapter(SourceAdapter):
             metadata["row_count"] = str(row_count)
         return metadata
 
-    def _build_generate_payload(self, logical_date: datetime | None) -> dict[str, Any]:
-        return build_generate_payload(
+    def _build_generate_payload(
+        self,
+        logical_date: datetime | None,
+        *,
+        manual_payload: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        payload = build_generate_payload(
             request_overrides=self.adapter_config.request_overrides,
             row_count=self.adapter_config.row_count,
             seed=derive_seed(
@@ -229,6 +253,46 @@ class SimulatorApiAdapter(SourceAdapter):
                 fixed_seed=self.adapter_config.fixed_seed,
             ),
         )
+        if manual_payload is None:
+            return payload
+
+        request_overrides = manual_payload.get("request_overrides", {})
+        if not isinstance(request_overrides, dict):
+            raise ValueError("Manual simulator request field 'request_overrides' must be an object")
+        payload.update(request_overrides)
+
+        manual_row_count = manual_payload.get("row_count")
+        if manual_row_count is not None:
+            if not isinstance(manual_row_count, int) or manual_row_count < 1:
+                raise ValueError(
+                    "Manual simulator request field 'row_count' must be a positive integer"
+                )
+            payload["row_count"] = manual_row_count
+
+        if "seed" in manual_payload:
+            manual_seed = manual_payload["seed"]
+            if manual_seed is None:
+                payload.pop("seed", None)
+            elif not isinstance(manual_seed, int):
+                raise ValueError("Manual simulator request field 'seed' must be an integer")
+            else:
+                payload["seed"] = manual_seed
+        return payload
+
+    def _resolve_suggested_object_name(
+        self,
+        manual_payload: dict[str, Any] | None,
+    ) -> str | None:
+        if manual_payload is None:
+            return None
+        suggested_object_name = manual_payload.get("suggested_object_name")
+        if suggested_object_name is None:
+            return None
+        if not isinstance(suggested_object_name, str) or suggested_object_name.strip() == "":
+            raise ValueError(
+                "Manual simulator request field 'suggested_object_name' must be a non-empty string"
+            )
+        return suggested_object_name
 
     def _signed_post(self, url: str, payload: dict[str, Any]) -> tuple[bytes, str]:
         from botocore.auth import SigV4Auth

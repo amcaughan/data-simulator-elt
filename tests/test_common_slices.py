@@ -46,14 +46,11 @@ class CommonSliceTests(unittest.TestCase):
         self.assertEqual(logical_slice.slice_start, datetime(2026, 3, 19, 0, 0, tzinfo=UTC))
         self.assertEqual(logical_slice.slice_end, datetime(2026, 3, 20, 0, 0, tzinfo=UTC))
 
-    def test_backfill_count_iterates_quarter_slices(self):
-        window = SliceWindowConfig(
+    def test_relative_backward_selector_iterates_quarter_slices(self):
+        window = SliceWindowConfig.relative(
             slice_granularity="quarter",
-            mode="backfill",
-            logical_date=None,
-            start_at=None,
-            end_at=None,
-            backfill_count=3,
+            relative_count=3,
+            relative_direction="backward",
         )
 
         slices = window.iter_slices(now=datetime(2026, 5, 11, 9, 30, tzinfo=UTC))
@@ -67,14 +64,30 @@ class CommonSliceTests(unittest.TestCase):
             ],
         )
 
+    def test_relative_forward_selector_iterates_from_anchor_forward(self):
+        window = SliceWindowConfig.relative(
+            slice_granularity="month",
+            relative_count=3,
+            relative_direction="forward",
+            relative_anchor_at="2026-03-18T12:00:00Z",
+        )
+
+        slices = window.iter_slices()
+
+        self.assertEqual(
+            [logical_slice.slice_start.isoformat() for logical_slice in slices],
+            [
+                "2026-03-01T00:00:00+00:00",
+                "2026-04-01T00:00:00+00:00",
+                "2026-05-01T00:00:00+00:00",
+            ],
+        )
+
     def test_range_overlap_policy_includes_partial_edge_slices(self):
-        window = SliceWindowConfig(
+        window = SliceWindowConfig.range(
             slice_granularity="day",
-            mode="backfill",
-            logical_date=None,
-            start_at="2026-03-13T12:00:00Z",
-            end_at="2026-03-16T12:00:00Z",
-            backfill_count=None,
+            range_start_at="2026-03-13T12:00:00Z",
+            range_end_at="2026-03-16T12:00:00Z",
             range_inclusion_policy="overlap",
         )
 
@@ -91,13 +104,10 @@ class CommonSliceTests(unittest.TestCase):
         )
 
     def test_range_contained_policy_excludes_partial_edge_slices(self):
-        window = SliceWindowConfig(
+        window = SliceWindowConfig.range(
             slice_granularity="day",
-            mode="backfill",
-            logical_date=None,
-            start_at="2026-03-13T12:00:00Z",
-            end_at="2026-03-16T12:00:00Z",
-            backfill_count=None,
+            range_start_at="2026-03-13T12:00:00Z",
+            range_end_at="2026-03-16T12:00:00Z",
             range_inclusion_policy="contained",
         )
 
@@ -112,18 +122,28 @@ class CommonSliceTests(unittest.TestCase):
         )
 
     def test_range_strict_policy_rejects_unaligned_bounds(self):
-        window = SliceWindowConfig(
+        window = SliceWindowConfig.range(
             slice_granularity="day",
-            mode="backfill",
-            logical_date=None,
-            start_at="2026-03-13T12:00:00Z",
-            end_at="2026-03-16T12:00:00Z",
-            backfill_count=None,
+            range_start_at="2026-03-13T12:00:00Z",
+            range_end_at="2026-03-16T12:00:00Z",
             range_inclusion_policy="strict",
         )
 
         with self.assertRaisesRegex(ValueError, "SLICE_RANGE_POLICY='strict'"):
             window.iter_slices()
+
+    def test_selector_modes_ignore_irrelevant_selector_fields(self):
+        window = SliceWindowConfig(
+            slice_granularity="day",
+            selector_mode="current",
+            pinned_at="2026-03-13",
+            range_start_at=None,
+            range_end_at=None,
+            relative_count=None,
+            relative_direction=None,
+        )
+
+        window.validate()
 
     def test_default_partition_fields_match_slice_granularity(self):
         self.assertEqual(

@@ -5,7 +5,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 
-VALID_MODES = {"live_hit", "backfill"}
+VALID_SELECTOR_MODES = {"current", "pinned", "range", "relative"}
+VALID_RELATIVE_DIRECTIONS = {"backward", "forward"}
 VALID_TIMESTAMP_ALIGNMENT_POLICIES = {"floor", "ceil", "strict"}
 VALID_RANGE_INCLUSION_POLICIES = {"overlap", "contained", "strict"}
 
@@ -256,19 +257,107 @@ def build_logical_slice(
 @dataclass(frozen=True)
 class SliceWindowConfig:
     slice_granularity: str
-    mode: str
-    logical_date: str | None
-    start_at: str | None
-    end_at: str | None
-    backfill_count: int | None
+    selector_mode: str
+    pinned_at: str | None
+    range_start_at: str | None
+    range_end_at: str | None
+    relative_count: int | None
+    relative_direction: str | None
+    relative_anchor_at: str | None = None
     timestamp_alignment_policy: str = "floor"
     range_inclusion_policy: str = "overlap"
+
+    @classmethod
+    def current(
+        cls,
+        *,
+        slice_granularity: str,
+        timestamp_alignment_policy: str = "floor",
+    ) -> "SliceWindowConfig":
+        return cls(
+            slice_granularity=slice_granularity,
+            selector_mode="current",
+            pinned_at=None,
+            range_start_at=None,
+            range_end_at=None,
+            relative_count=None,
+            relative_direction=None,
+            relative_anchor_at=None,
+            timestamp_alignment_policy=timestamp_alignment_policy,
+        )
+
+    @classmethod
+    def pinned(
+        cls,
+        *,
+        slice_granularity: str,
+        pinned_at: str,
+        timestamp_alignment_policy: str = "floor",
+    ) -> "SliceWindowConfig":
+        return cls(
+            slice_granularity=slice_granularity,
+            selector_mode="pinned",
+            pinned_at=pinned_at,
+            range_start_at=None,
+            range_end_at=None,
+            relative_count=None,
+            relative_direction=None,
+            relative_anchor_at=None,
+            timestamp_alignment_policy=timestamp_alignment_policy,
+        )
+
+    @classmethod
+    def range(
+        cls,
+        *,
+        slice_granularity: str,
+        range_start_at: str,
+        range_end_at: str,
+        timestamp_alignment_policy: str = "floor",
+        range_inclusion_policy: str = "overlap",
+    ) -> "SliceWindowConfig":
+        return cls(
+            slice_granularity=slice_granularity,
+            selector_mode="range",
+            pinned_at=None,
+            range_start_at=range_start_at,
+            range_end_at=range_end_at,
+            relative_count=None,
+            relative_direction=None,
+            relative_anchor_at=None,
+            timestamp_alignment_policy=timestamp_alignment_policy,
+            range_inclusion_policy=range_inclusion_policy,
+        )
+
+    @classmethod
+    def relative(
+        cls,
+        *,
+        slice_granularity: str,
+        relative_count: int,
+        relative_direction: str,
+        relative_anchor_at: str | None = None,
+        timestamp_alignment_policy: str = "floor",
+    ) -> "SliceWindowConfig":
+        return cls(
+            slice_granularity=slice_granularity,
+            selector_mode="relative",
+            pinned_at=None,
+            range_start_at=None,
+            range_end_at=None,
+            relative_count=relative_count,
+            relative_direction=relative_direction,
+            relative_anchor_at=relative_anchor_at,
+            timestamp_alignment_policy=timestamp_alignment_policy,
+        )
 
     def validate(self) -> None:
         get_granularity(self.slice_granularity)
 
-        if self.mode not in VALID_MODES:
-            raise ValueError(f"MODE must be one of {sorted(VALID_MODES)}")
+        if self.selector_mode not in VALID_SELECTOR_MODES:
+            raise ValueError(
+                f"SLICE_SELECTOR_MODE must be one of {sorted(VALID_SELECTOR_MODES)}"
+            )
 
         if self.timestamp_alignment_policy not in VALID_TIMESTAMP_ALIGNMENT_POLICIES:
             raise ValueError(
@@ -281,60 +370,100 @@ class SliceWindowConfig:
                 f"{sorted(VALID_RANGE_INCLUSION_POLICIES)}"
             )
 
-        if self.mode == "live_hit" and any(
-            value is not None for value in (self.start_at, self.end_at, self.backfill_count)
-        ):
-            raise ValueError(
-                "Live-hit mode cannot use START_AT, END_AT, or BACKFILL_COUNT. "
-                "Use LOGICAL_DATE to pin a one-off run to a specific logical slice."
-            )
+        if self.selector_mode == "current":
+            return
 
-        if self.mode == "backfill":
-            has_range = self.start_at is not None or self.end_at is not None
-            has_count = self.backfill_count is not None
-            if not has_range and not has_count:
-                raise ValueError(
-                    "Backfill mode requires BACKFILL_COUNT or both START_AT and END_AT"
-                )
-            if has_range and (self.start_at is None or self.end_at is None):
-                raise ValueError("START_AT and END_AT must be provided together")
-            if self.backfill_count is not None and self.backfill_count < 1:
-                raise ValueError("BACKFILL_COUNT must be greater than zero")
+        if self.selector_mode == "pinned":
+            _validate_selector_field_is_present("pinned", "SLICE_PINNED_AT", self.pinned_at)
+            return
+
+        if self.selector_mode == "range":
+            _validate_selector_field_is_present(
+                "range",
+                "SLICE_RANGE_START_AT",
+                self.range_start_at,
+            )
+            _validate_selector_field_is_present(
+                "range",
+                "SLICE_RANGE_END_AT",
+                self.range_end_at,
+            )
+            return
+
+        _validate_selector_field_is_present(
+            "relative",
+            "SLICE_RELATIVE_COUNT",
+            self.relative_count,
+        )
+        _validate_selector_field_is_present(
+            "relative",
+            "SLICE_RELATIVE_DIRECTION",
+            self.relative_direction,
+        )
+        if self.relative_count < 1:
+            raise ValueError("SLICE_RELATIVE_COUNT must be greater than zero")
+        if self.relative_direction not in VALID_RELATIVE_DIRECTIONS:
+            raise ValueError(
+                "SLICE_RELATIVE_DIRECTION must be one of "
+                f"{sorted(VALID_RELATIVE_DIRECTIONS)}"
+            )
 
     def iter_slices(self, now: datetime | None = None) -> list[LogicalSlice]:
         granularity = get_granularity(self.slice_granularity)
         current_time = now or datetime.now(UTC)
 
-        if self.mode == "live_hit":
-            anchor = parse_iso_datetime(self.logical_date) if self.logical_date else current_time
+        if self.selector_mode == "current":
             return [
                 granularity.build_slice(
-                    anchor,
+                    current_time,
                     alignment_policy=self.timestamp_alignment_policy,
                 )
             ]
 
-        if self.backfill_count is not None:
-            end_slice = granularity.build_slice(
-                current_time,
+        if self.selector_mode == "pinned":
+            return [
+                granularity.build_slice(
+                    parse_iso_datetime(self.pinned_at),
+                    alignment_policy=self.timestamp_alignment_policy,
+                )
+            ]
+
+        if self.selector_mode == "relative":
+            anchor_time = (
+                parse_iso_datetime(self.relative_anchor_at)
+                if self.relative_anchor_at is not None
+                else current_time
+            )
+            anchor_slice = granularity.build_slice(
+                anchor_time,
                 alignment_policy=self.timestamp_alignment_policy,
             )
-            first_slice_start = granularity.shift(
-                end_slice.slice_start,
-                -(self.backfill_count - 1),
-            )
+            if self.relative_direction == "backward":
+                first_slice_start = granularity.shift(
+                    anchor_slice.slice_start,
+                    -(self.relative_count - 1),
+                )
+                end_slice = anchor_slice
+            else:
+                first_slice_start = anchor_slice.slice_start
+                end_slice = granularity.build_slice(
+                    granularity.shift(anchor_slice.slice_start, self.relative_count - 1),
+                    treat_as_slice_start=True,
+                )
             start_slice = granularity.build_slice(first_slice_start, treat_as_slice_start=True)
         else:
-            range_start = parse_iso_datetime(self.start_at)
-            range_end = parse_iso_datetime(self.end_at)
+            range_start = parse_iso_datetime(self.range_start_at)
+            range_end = parse_iso_datetime(self.range_end_at)
 
             if range_start > range_end:
-                raise ValueError("START_AT must be less than or equal to END_AT")
+                raise ValueError(
+                    "SLICE_RANGE_START_AT must be less than or equal to SLICE_RANGE_END_AT"
+                )
 
             if self.range_inclusion_policy == "strict":
                 if not granularity.is_aligned(range_start) or not granularity.is_aligned(range_end):
                     raise ValueError(
-                        "START_AT and END_AT must align to slice boundaries when "
+                        "SLICE_RANGE_START_AT and SLICE_RANGE_END_AT must align to slice boundaries when "
                         "SLICE_RANGE_POLICY='strict'"
                     )
                 start_slice = granularity.build_slice(range_start, treat_as_slice_start=True)
@@ -350,13 +479,15 @@ class SliceWindowConfig:
                 )
 
         if start_slice.slice_start > end_slice.slice_start:
-            raise ValueError("START_AT must be less than or equal to END_AT")
+            raise ValueError(
+                "SLICE_RANGE_START_AT must be less than or equal to SLICE_RANGE_END_AT"
+            )
 
         slices: list[LogicalSlice] = []
         cursor = start_slice.slice_start
         while cursor <= end_slice.slice_start:
             logical_slice = granularity.build_slice(cursor, treat_as_slice_start=True)
-            if self.backfill_count is None:
+            if self.selector_mode == "range":
                 if self.range_inclusion_policy == "overlap":
                     if not _slice_overlaps_range(logical_slice, range_start, range_end):
                         cursor = granularity.shift(cursor, 1)
@@ -373,6 +504,25 @@ class SliceWindowConfig:
                 "The configured range and boundary policy do not include any logical slices"
             )
         return slices
+
+    @property
+    def request_kind(self) -> str:
+        if self.selector_mode == "current":
+            return "live"
+        if self.selector_mode == "pinned":
+            return "slice"
+        return "multi_slice"
+
+
+def _validate_selector_field_is_present(
+    selector_mode: str,
+    field_name: str,
+    value: object | None,
+) -> None:
+    if value is None:
+        raise ValueError(
+            f"{field_name} is required when SLICE_SELECTOR_MODE='{selector_mode}'"
+        )
 
 
 def _slice_overlaps_range(

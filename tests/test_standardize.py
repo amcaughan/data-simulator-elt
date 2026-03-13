@@ -75,13 +75,9 @@ class StandardizeTests(unittest.TestCase):
             "output_slice_granularity": "day",
             "processed_output_prefix": "raw",
             "landing_input_prefix": None,
-            "slice_window": SliceWindowConfig(
+            "slice_window": SliceWindowConfig.pinned(
                 slice_granularity="day",
-                mode="live_hit",
-                logical_date="2026-03-12",
-                start_at=None,
-                end_at=None,
-                backfill_count=None,
+                pinned_at="2026-03-12",
             ),
             "source_adapter_config": {"preset_id": "transaction_benchmark"},
         }

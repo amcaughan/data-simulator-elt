@@ -101,11 +101,13 @@ class StandardizeConfig:
                 slice_granularity=os.environ.get(
                     "OUTPUT_SLICE_GRANULARITY", "day"
                 ),
-                mode=os.environ.get("MODE", "live_hit"),
-                logical_date=os.environ.get("LOGICAL_DATE"),
-                start_at=os.environ.get("START_AT"),
-                end_at=os.environ.get("END_AT"),
-                backfill_count=_optional_int("BACKFILL_COUNT"),
+                selector_mode=os.environ.get("SLICE_SELECTOR_MODE", "current"),
+                pinned_at=os.environ.get("SLICE_PINNED_AT"),
+                range_start_at=os.environ.get("SLICE_RANGE_START_AT"),
+                range_end_at=os.environ.get("SLICE_RANGE_END_AT"),
+                relative_count=_optional_int("SLICE_RELATIVE_COUNT"),
+                relative_direction=os.environ.get("SLICE_RELATIVE_DIRECTION"),
+                relative_anchor_at=os.environ.get("SLICE_RELATIVE_ANCHOR_AT"),
                 timestamp_alignment_policy=os.environ.get(
                     "SLICE_ALIGNMENT_POLICY",
                     "floor",
@@ -145,9 +147,6 @@ class StandardizeConfig:
             )
 
     @property
-    def mode(self) -> str:
-        return self.slice_window.mode
-
     def iter_slices(self, now=None) -> list[LogicalSlice]:
         return [
             logical_slice.with_run_id(str(uuid4()))
