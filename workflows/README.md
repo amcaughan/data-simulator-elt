@@ -11,5 +11,5 @@ Each workflow may also own:
 - a workflow-specific dbt image
 
 That is intentional. Shared source-ingest and standardize runtimes live under
-`containers/shared/`, but transformation logic belongs to the workflow that owns the data
-boundary.
+`containers/shared/`, but transformation logic belongs to the workflow that
+owns the data boundary.

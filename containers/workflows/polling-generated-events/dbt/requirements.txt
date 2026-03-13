@@ -1,1 +1,1 @@
-# Compile this file from containers/workflows/polling-generated-events/dbt/requirements.in when dbt dependencies are added.
+# Add workflow-specific dbt dependencies here when the polling-generated-events dbt project is implemented.

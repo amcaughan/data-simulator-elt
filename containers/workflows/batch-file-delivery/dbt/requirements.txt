@@ -1,1 +1,1 @@
-# Compile this file from containers/workflows/batch-file-delivery/dbt/requirements.in when dbt dependencies are added.
+# Add workflow-specific dbt dependencies here when the batch-file-delivery dbt project is implemented.
