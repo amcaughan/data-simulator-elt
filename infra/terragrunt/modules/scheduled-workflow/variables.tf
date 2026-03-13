@@ -86,28 +86,38 @@ variable "slice_granularity" {
   default = "day"
 }
 
-variable "source_ingest_mode" {
+variable "source_ingest_slice_selector_mode" {
   type    = string
-  default = "live_hit"
+  default = "current"
 }
 
-variable "source_ingest_logical_date" {
-  type    = string
-  default = null
-}
-
-variable "source_ingest_start_at" {
+variable "source_ingest_slice_pinned_at" {
   type    = string
   default = null
 }
 
-variable "source_ingest_end_at" {
+variable "source_ingest_slice_range_start_at" {
   type    = string
   default = null
 }
 
-variable "source_ingest_backfill_count" {
+variable "source_ingest_slice_range_end_at" {
+  type    = string
+  default = null
+}
+
+variable "source_ingest_slice_relative_count" {
   type    = number
+  default = null
+}
+
+variable "source_ingest_slice_relative_direction" {
+  type    = string
+  default = null
+}
+
+variable "source_ingest_slice_relative_anchor_at" {
+  type    = string
   default = null
 }
 
@@ -129,28 +139,38 @@ variable "standardize_container_image" {
   type = string
 }
 
-variable "standardize_mode" {
+variable "standardize_slice_selector_mode" {
   type    = string
-  default = "live_hit"
+  default = "current"
 }
 
-variable "standardize_logical_date" {
-  type    = string
-  default = null
-}
-
-variable "standardize_start_at" {
+variable "standardize_slice_pinned_at" {
   type    = string
   default = null
 }
 
-variable "standardize_end_at" {
+variable "standardize_slice_range_start_at" {
   type    = string
   default = null
 }
 
-variable "standardize_backfill_count" {
+variable "standardize_slice_range_end_at" {
+  type    = string
+  default = null
+}
+
+variable "standardize_slice_relative_count" {
   type    = number
+  default = null
+}
+
+variable "standardize_slice_relative_direction" {
+  type    = string
+  default = null
+}
+
+variable "standardize_slice_relative_anchor_at" {
+  type    = string
   default = null
 }
 

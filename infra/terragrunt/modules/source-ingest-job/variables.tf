@@ -50,28 +50,38 @@ variable "slice_granularity" {
   default = "day"
 }
 
-variable "mode" {
+variable "slice_selector_mode" {
   type    = string
-  default = "live_hit"
+  default = "current"
 }
 
-variable "logical_date" {
-  type    = string
-  default = null
-}
-
-variable "start_at" {
+variable "slice_pinned_at" {
   type    = string
   default = null
 }
 
-variable "end_at" {
+variable "slice_range_start_at" {
   type    = string
   default = null
 }
 
-variable "backfill_count" {
+variable "slice_range_end_at" {
+  type    = string
+  default = null
+}
+
+variable "slice_relative_count" {
   type    = number
+  default = null
+}
+
+variable "slice_relative_direction" {
+  type    = string
+  default = null
+}
+
+variable "slice_relative_anchor_at" {
+  type    = string
   default = null
 }
 

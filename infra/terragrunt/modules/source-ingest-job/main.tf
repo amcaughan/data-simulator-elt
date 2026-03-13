@@ -31,8 +31,8 @@ locals {
         value = var.slice_granularity
       },
       {
-        name  = "MODE"
-        value = var.mode
+        name  = "SLICE_SELECTOR_MODE"
+        value = var.slice_selector_mode
       },
       {
         name  = "SLICE_ALIGNMENT_POLICY"
@@ -73,28 +73,40 @@ locals {
         value = var.landing_path_suffix_json
       }
     ],
-    var.logical_date == null ? [] : [
+    var.slice_pinned_at == null ? [] : [
       {
-        name  = "LOGICAL_DATE"
-        value = var.logical_date
+        name  = "SLICE_PINNED_AT"
+        value = var.slice_pinned_at
       }
     ],
-    var.start_at == null ? [] : [
+    var.slice_range_start_at == null ? [] : [
       {
-        name  = "START_AT"
-        value = var.start_at
+        name  = "SLICE_RANGE_START_AT"
+        value = var.slice_range_start_at
       }
     ],
-    var.end_at == null ? [] : [
+    var.slice_range_end_at == null ? [] : [
       {
-        name  = "END_AT"
-        value = var.end_at
+        name  = "SLICE_RANGE_END_AT"
+        value = var.slice_range_end_at
       }
     ],
-    var.backfill_count == null ? [] : [
+    var.slice_relative_count == null ? [] : [
       {
-        name  = "BACKFILL_COUNT"
-        value = tostring(var.backfill_count)
+        name  = "SLICE_RELATIVE_COUNT"
+        value = tostring(var.slice_relative_count)
+      }
+    ],
+    var.slice_relative_direction == null ? [] : [
+      {
+        name  = "SLICE_RELATIVE_DIRECTION"
+        value = var.slice_relative_direction
+      }
+    ],
+    var.slice_relative_anchor_at == null ? [] : [
+      {
+        name  = "SLICE_RELATIVE_ANCHOR_AT"
+        value = var.slice_relative_anchor_at
       }
     ],
   )
