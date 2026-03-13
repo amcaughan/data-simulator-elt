@@ -26,8 +26,10 @@ Options:
   --slice-relative-anchor-at I Optional anchor timestamp for selector mode relative.
   --slice-alignment NAME       floor | ceil | strict. Default: floor
   --slice-range-policy NAME    overlap | contained | strict. Default: overlap
-  --adapter-config-json JSON   Override SOURCE_ADAPTER_CONFIG_JSON for the run.
-  --adapter-config-file PATH   Read adapter config override from a file.
+  --source-adapter-config-json JSON   Override SOURCE_ADAPTER_CONFIG_JSON for source-ingest.
+  --source-adapter-config-file PATH   Read source adapter config override from a file.
+  --standardize-strategy-config-json JSON   Override STANDARDIZE_STRATEGY_CONFIG_JSON for standardize.
+  --standardize-strategy-config-file PATH   Read standardize strategy config override from a file.
   --manual-request-json JSON   Manual request payload for source-ingest manual mode.
   --manual-request-file PATH   Read manual request payload from a file.
   --manual-storage-prefix P    Manual storage prefix for source-ingest manual mode.
@@ -36,7 +38,9 @@ Options:
   --landing-partitions JSON    Override LANDING_PARTITION_FIELDS_JSON for the run.
   --landing-path-suffix JSON   Override LANDING_PATH_SUFFIX_JSON for the run.
   --landing-input-prefix PATH  Override LANDING_INPUT_PREFIX for standardize.
-  --processed-output-prefix P  Override PROCESSED_OUTPUT_PREFIX for standardize.
+  --processed-base-prefix P    Override PROCESSED_BASE_PREFIX for standardize.
+  --processed-partitions JSON  Override PROCESSED_PARTITION_FIELDS_JSON for standardize.
+  --processed-path-suffix JSON Override PROCESSED_PATH_SUFFIX_JSON for standardize.
   --wait                       Wait for the final task to stop before exiting.
   --help                       Show this help.
 
@@ -74,8 +78,10 @@ SLICE_RELATIVE_DIRECTION=""
 SLICE_RELATIVE_ANCHOR_AT=""
 SLICE_ALIGNMENT_POLICY=""
 SLICE_RANGE_POLICY=""
-ADAPTER_CONFIG_JSON=""
-ADAPTER_CONFIG_FILE=""
+SOURCE_ADAPTER_CONFIG_JSON=""
+SOURCE_ADAPTER_CONFIG_FILE=""
+STANDARDIZE_STRATEGY_CONFIG_JSON=""
+STANDARDIZE_STRATEGY_CONFIG_FILE=""
 MANUAL_REQUEST_JSON=""
 MANUAL_REQUEST_FILE=""
 MANUAL_STORAGE_PREFIX=""
@@ -84,7 +90,9 @@ LANDING_BASE_PREFIX=""
 LANDING_PARTITIONS_JSON=""
 LANDING_PATH_SUFFIX_JSON=""
 LANDING_INPUT_PREFIX=""
-PROCESSED_OUTPUT_PREFIX=""
+PROCESSED_BASE_PREFIX=""
+PROCESSED_PARTITIONS_JSON=""
+PROCESSED_PATH_SUFFIX_JSON=""
 WAIT_FOR_FINAL="false"
 
 while [[ $# -gt 0 ]]; do
@@ -141,12 +149,20 @@ while [[ $# -gt 0 ]]; do
       SLICE_RANGE_POLICY="${2:-}"
       shift 2
       ;;
-    --adapter-config-json)
-      ADAPTER_CONFIG_JSON="${2:-}"
+    --source-adapter-config-json)
+      SOURCE_ADAPTER_CONFIG_JSON="${2:-}"
       shift 2
       ;;
-    --adapter-config-file)
-      ADAPTER_CONFIG_FILE="${2:-}"
+    --source-adapter-config-file)
+      SOURCE_ADAPTER_CONFIG_FILE="${2:-}"
+      shift 2
+      ;;
+    --standardize-strategy-config-json)
+      STANDARDIZE_STRATEGY_CONFIG_JSON="${2:-}"
+      shift 2
+      ;;
+    --standardize-strategy-config-file)
+      STANDARDIZE_STRATEGY_CONFIG_FILE="${2:-}"
       shift 2
       ;;
     --manual-request-json)
@@ -181,8 +197,16 @@ while [[ $# -gt 0 ]]; do
       LANDING_INPUT_PREFIX="${2:-}"
       shift 2
       ;;
-    --processed-output-prefix)
-      PROCESSED_OUTPUT_PREFIX="${2:-}"
+    --processed-base-prefix)
+      PROCESSED_BASE_PREFIX="${2:-}"
+      shift 2
+      ;;
+    --processed-partitions)
+      PROCESSED_PARTITIONS_JSON="${2:-}"
+      shift 2
+      ;;
+    --processed-path-suffix)
+      PROCESSED_PATH_SUFFIX_JSON="${2:-}"
       shift 2
       ;;
     --wait)
@@ -215,8 +239,13 @@ case "$STEP" in
     ;;
 esac
 
-if [[ -n "$ADAPTER_CONFIG_JSON" && -n "$ADAPTER_CONFIG_FILE" ]]; then
-  echo "Use only one of --adapter-config-json or --adapter-config-file" >&2
+if [[ -n "$SOURCE_ADAPTER_CONFIG_JSON" && -n "$SOURCE_ADAPTER_CONFIG_FILE" ]]; then
+  echo "Use only one of --source-adapter-config-json or --source-adapter-config-file" >&2
+  exit 1
+fi
+
+if [[ -n "$STANDARDIZE_STRATEGY_CONFIG_JSON" && -n "$STANDARDIZE_STRATEGY_CONFIG_FILE" ]]; then
+  echo "Use only one of --standardize-strategy-config-json or --standardize-strategy-config-file" >&2
   exit 1
 fi
 
@@ -225,8 +254,12 @@ if [[ -n "$MANUAL_REQUEST_JSON" && -n "$MANUAL_REQUEST_FILE" ]]; then
   exit 1
 fi
 
-if [[ -n "$ADAPTER_CONFIG_FILE" ]]; then
-  ADAPTER_CONFIG_JSON="$(cat "$ADAPTER_CONFIG_FILE")"
+if [[ -n "$SOURCE_ADAPTER_CONFIG_FILE" ]]; then
+  SOURCE_ADAPTER_CONFIG_JSON="$(cat "$SOURCE_ADAPTER_CONFIG_FILE")"
+fi
+
+if [[ -n "$STANDARDIZE_STRATEGY_CONFIG_FILE" ]]; then
+  STANDARDIZE_STRATEGY_CONFIG_JSON="$(cat "$STANDARDIZE_STRATEGY_CONFIG_FILE")"
 fi
 
 if [[ -n "$MANUAL_REQUEST_FILE" ]]; then
@@ -317,7 +350,8 @@ run_step() {
     SLICE_RELATIVE_ANCHOR_AT="$SLICE_RELATIVE_ANCHOR_AT" \
     SLICE_ALIGNMENT_POLICY="$SLICE_ALIGNMENT_POLICY" \
     SLICE_RANGE_POLICY="$SLICE_RANGE_POLICY" \
-    ADAPTER_CONFIG_JSON="$ADAPTER_CONFIG_JSON" \
+    SOURCE_ADAPTER_CONFIG_JSON="$SOURCE_ADAPTER_CONFIG_JSON" \
+    STANDARDIZE_STRATEGY_CONFIG_JSON="$STANDARDIZE_STRATEGY_CONFIG_JSON" \
     MANUAL_REQUEST_JSON="$MANUAL_REQUEST_JSON" \
     MANUAL_STORAGE_PREFIX="$MANUAL_STORAGE_PREFIX" \
     MANUAL_OBJECT_NAME="$MANUAL_OBJECT_NAME" \
@@ -325,7 +359,9 @@ run_step() {
     LANDING_PARTITIONS_JSON="$LANDING_PARTITIONS_JSON" \
     LANDING_PATH_SUFFIX_JSON="$LANDING_PATH_SUFFIX_JSON" \
     LANDING_INPUT_PREFIX="$LANDING_INPUT_PREFIX" \
-    PROCESSED_OUTPUT_PREFIX="$PROCESSED_OUTPUT_PREFIX" \
+    PROCESSED_BASE_PREFIX="$PROCESSED_BASE_PREFIX" \
+    PROCESSED_PARTITIONS_JSON="$PROCESSED_PARTITIONS_JSON" \
+    PROCESSED_PATH_SUFFIX_JSON="$PROCESSED_PATH_SUFFIX_JSON" \
     WORKFLOW_NAME="$WORKFLOW_NAME" \
     python3 - <<'PY'
 import json
@@ -384,12 +420,21 @@ else:
         if value:
             env.append({"name": key, "value": value})
 
-adapter_config_json = os.environ.get("ADAPTER_CONFIG_JSON")
-if adapter_config_json:
+source_adapter_config_json = os.environ.get("SOURCE_ADAPTER_CONFIG_JSON")
+if source_adapter_config_json and step_name == "source-ingest":
     env.append(
         {
             "name": "SOURCE_ADAPTER_CONFIG_JSON",
-            "value": adapter_config_json,
+            "value": source_adapter_config_json,
+        }
+    )
+
+standardize_strategy_config_json = os.environ.get("STANDARDIZE_STRATEGY_CONFIG_JSON")
+if standardize_strategy_config_json and step_name == "standardize":
+    env.append(
+        {
+            "name": "STANDARDIZE_STRATEGY_CONFIG_JSON",
+            "value": standardize_strategy_config_json,
         }
     )
 
@@ -416,12 +461,30 @@ if step_name == "standardize":
             }
         )
 
-    processed_output_prefix = os.environ.get("PROCESSED_OUTPUT_PREFIX")
-    if processed_output_prefix:
+    processed_base_prefix = os.environ.get("PROCESSED_BASE_PREFIX")
+    if processed_base_prefix:
         env.append(
             {
-                "name": "PROCESSED_OUTPUT_PREFIX",
-                "value": processed_output_prefix,
+                "name": "PROCESSED_BASE_PREFIX",
+                "value": processed_base_prefix,
+            }
+        )
+
+    processed_partitions_json = os.environ.get("PROCESSED_PARTITIONS_JSON")
+    if processed_partitions_json:
+        env.append(
+            {
+                "name": "PROCESSED_PARTITION_FIELDS_JSON",
+                "value": processed_partitions_json,
+            }
+        )
+
+    processed_path_suffix_json = os.environ.get("PROCESSED_PATH_SUFFIX_JSON")
+    if processed_path_suffix_json:
+        env.append(
+            {
+                "name": "PROCESSED_PATH_SUFFIX_JSON",
+                "value": processed_path_suffix_json,
             }
         )
 
