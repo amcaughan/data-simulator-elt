@@ -1,7 +1,7 @@
 Source-facing landing ingestion runtime.
 
 Responsibilities:
-- iterate logical slices generically
+- build explicit pull requests generically
 - delegate source fetch behavior to a named adapter
 - write exact source payloads into the landing bucket
 - support both live-hit and backfill execution modes
@@ -13,8 +13,12 @@ Each source adapter must implement the abstract base in `adapters/base.py`:
 - `from_ingest_config(...)`
 - `fetch(...)`
 
+The runtime turns scheduler intent into explicit request types:
+- `LivePullRequest`
+- `HistoricalSlicePullRequest`
+
 For `simulator_api`, the adapter is responsible for:
-- interpreting logical slices as preset generate requests
+- interpreting pull requests as preset generate requests
 - deriving deterministic seeds from workflow + preset + logical date when requested
 - signing requests with the task role and calling the private simulator API
 
