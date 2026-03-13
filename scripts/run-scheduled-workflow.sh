@@ -21,6 +21,8 @@ Options:
   --start-at ISO               Backfill range start.
   --end-at ISO                 Backfill range end.
   --backfill-count N           Backfill the previous N logical slices.
+  --slice-alignment NAME       floor | ceil | strict. Default: floor
+  --slice-range-policy NAME    overlap | contained | strict. Default: overlap
   --adapter-config-json JSON   Override SOURCE_ADAPTER_CONFIG_JSON for the run.
   --adapter-config-file PATH   Read adapter config override from a file.
   --landing-base-prefix PATH   Override LANDING_BASE_PREFIX for the run.
@@ -58,6 +60,8 @@ LOGICAL_DATE=""
 START_AT=""
 END_AT=""
 BACKFILL_COUNT=""
+SLICE_ALIGNMENT_POLICY=""
+SLICE_RANGE_POLICY=""
 ADAPTER_CONFIG_JSON=""
 ADAPTER_CONFIG_FILE=""
 LANDING_BASE_PREFIX=""
@@ -99,6 +103,14 @@ while [[ $# -gt 0 ]]; do
       ;;
     --backfill-count)
       BACKFILL_COUNT="${2:-}"
+      shift 2
+      ;;
+    --slice-alignment)
+      SLICE_ALIGNMENT_POLICY="${2:-}"
+      shift 2
+      ;;
+    --slice-range-policy)
+      SLICE_RANGE_POLICY="${2:-}"
       shift 2
       ;;
     --adapter-config-json)
@@ -221,6 +233,8 @@ run_step() {
     START_AT="$START_AT" \
     END_AT="$END_AT" \
     BACKFILL_COUNT="$BACKFILL_COUNT" \
+    SLICE_ALIGNMENT_POLICY="$SLICE_ALIGNMENT_POLICY" \
+    SLICE_RANGE_POLICY="$SLICE_RANGE_POLICY" \
     ADAPTER_CONFIG_JSON="$ADAPTER_CONFIG_JSON" \
     LANDING_BASE_PREFIX="$LANDING_BASE_PREFIX" \
     LANDING_PARTITIONS_JSON="$LANDING_PARTITIONS_JSON" \
@@ -254,6 +268,11 @@ container_name = os.environ["CONTAINER_NAME"]
 env = [{"name": "MODE", "value": os.environ["MODE"]}]
 
 for key in ("LOGICAL_DATE", "START_AT", "END_AT", "BACKFILL_COUNT"):
+    value = os.environ.get(key)
+    if value:
+        env.append({"name": key, "value": value})
+
+for key in ("SLICE_ALIGNMENT_POLICY", "SLICE_RANGE_POLICY"):
     value = os.environ.get(key)
     if value:
         env.append({"name": key, "value": value})

@@ -111,6 +111,16 @@ variable "source_ingest_backfill_count" {
   default = null
 }
 
+variable "source_ingest_slice_alignment_policy" {
+  type    = string
+  default = "floor"
+}
+
+variable "source_ingest_slice_range_policy" {
+  type    = string
+  default = "overlap"
+}
+
 variable "source_ingest_container_image" {
   type = string
 }
@@ -142,6 +152,16 @@ variable "standardize_end_at" {
 variable "standardize_backfill_count" {
   type    = number
   default = null
+}
+
+variable "standardize_slice_alignment_policy" {
+  type    = string
+  default = "floor"
+}
+
+variable "standardize_slice_range_policy" {
+  type    = string
+  default = "overlap"
 }
 
 variable "standardize_output_slice_granularity" {

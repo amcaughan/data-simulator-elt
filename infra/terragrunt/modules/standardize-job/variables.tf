@@ -92,6 +92,16 @@ variable "backfill_count" {
   default = null
 }
 
+variable "slice_alignment_policy" {
+  type    = string
+  default = "floor"
+}
+
+variable "slice_range_policy" {
+  type    = string
+  default = "overlap"
+}
+
 variable "container_image" {
   type = string
 }

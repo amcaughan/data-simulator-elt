@@ -31,6 +31,8 @@ module "source_ingest" {
   start_at                       = var.source_ingest_start_at
   end_at                         = var.source_ingest_end_at
   backfill_count                 = var.source_ingest_backfill_count
+  slice_alignment_policy         = var.source_ingest_slice_alignment_policy
+  slice_range_policy             = var.source_ingest_slice_range_policy
   container_image                = var.source_ingest_container_image
 }
 
@@ -56,6 +58,8 @@ module "standardize" {
   start_at                       = var.standardize_start_at
   end_at                         = var.standardize_end_at
   backfill_count                 = var.standardize_backfill_count
+  slice_alignment_policy         = var.standardize_slice_alignment_policy
+  slice_range_policy             = var.standardize_slice_range_policy
   container_image                = var.standardize_container_image
 }
 

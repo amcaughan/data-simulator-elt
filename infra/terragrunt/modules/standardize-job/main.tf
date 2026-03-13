@@ -41,6 +41,14 @@ locals {
         value = var.mode
       },
       {
+        name  = "SLICE_ALIGNMENT_POLICY"
+        value = var.slice_alignment_policy
+      },
+      {
+        name  = "SLICE_RANGE_POLICY"
+        value = var.slice_range_policy
+      },
+      {
         name  = "PROCESSED_OUTPUT_PREFIX"
         value = var.processed_output_prefix
       },

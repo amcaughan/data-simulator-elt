@@ -35,6 +35,14 @@ locals {
         value = var.mode
       },
       {
+        name  = "SLICE_ALIGNMENT_POLICY"
+        value = var.slice_alignment_policy
+      },
+      {
+        name  = "SLICE_RANGE_POLICY"
+        value = var.slice_range_policy
+      },
+      {
         name  = "LANDING_BUCKET_NAME"
         value = var.landing_bucket_name
       },
