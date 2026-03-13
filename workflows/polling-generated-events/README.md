@@ -7,3 +7,18 @@ Intent:
 - later support dbt models for polling-style ingestion, repeated snapshots, and rolled-up event summaries
 
 This workflow owns its dbt project under `containers/workflows/polling-generated-events/dbt/`.
+
+Manual examples:
+
+```bash
+./scripts/run-scheduled-workflow.sh \
+  --workflow polling-generated-events
+```
+
+```bash
+./scripts/run-scheduled-workflow.sh \
+  --workflow polling-generated-events \
+  --mode backfill \
+  --backfill-days 7 \
+  --wait
+```

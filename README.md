@@ -84,9 +84,18 @@ This repository is intentionally biased toward easy teardown.
 
 - workflow and Athena-results buckets use force destroy
 - ECR repositories use force delete
+- ECR lifecycle policies keep only the newest immutable runtime image while a stack exists
 - the shared marts database is managed through Athena with force destroy
 
 The goal is to make environment cleanup easy when the data itself is disposable.
+
+In practice, that means a `terragrunt destroy` on the core and workflow stacks
+should remove the AWS resources that would otherwise keep accruing cost:
+- buckets
+- ECR repositories and images
+- ECS task definitions and log groups
+- schedules
+- stream resources
 
 ## Isolation model
 
@@ -106,6 +115,22 @@ external producer the platform would consume from in a real system.
 Infrastructure is applied manually via Terragrunt.
 CI should stay focused on static analysis, formatting, and security checks unless
 there is a deliberate reason to automate deploys.
+
+For one-off manual runs and quick backfills, use:
+
+```bash
+./scripts/run-scheduled-workflow.sh --workflow polling-generated-events
+```
+
+or:
+
+```bash
+./scripts/run-scheduled-workflow.sh \
+  --workflow batch-file-delivery \
+  --mode backfill \
+  --backfill-days 7 \
+  --wait
+```
 
 ## License
 
