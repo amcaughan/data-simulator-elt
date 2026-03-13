@@ -15,7 +15,7 @@ Required:
 
 Options:
   --env NAME                   Environment name. Default: dev
-  --step NAME                  source-ingest | standardize | dbt | both. Default: both
+  --step NAME                  source-ingest | standardize | dbt | all. Default: all
   --planning-mode NAME         temporal | manual. Default: temporal
   --slice-selector-mode NAME   current | pinned | range | relative.
   --slice-pinned-at ISO        Pinned slice anchor for selector mode pinned.
@@ -74,7 +74,7 @@ STEP_RUNNER="${REPO_ROOT}/scripts/run-ecs-step.sh"
 
 ENVIRONMENT="dev"
 WORKFLOW_NAME=""
-STEP="both"
+STEP="all"
 PLANNING_MODE="temporal"
 SLICE_SELECTOR_MODE=""
 SLICE_PINNED_AT=""
@@ -274,9 +274,9 @@ if [[ -z "$WORKFLOW_NAME" ]]; then
 fi
 
 case "$STEP" in
-  source-ingest|standardize|dbt|both) ;;
+  source-ingest|standardize|dbt|all) ;;
   *)
-    echo "--step must be one of: source-ingest, standardize, dbt, both" >&2
+    echo "--step must be one of: source-ingest, standardize, dbt, all" >&2
     exit 1
     ;;
 esac
@@ -325,7 +325,7 @@ case "$PLANNING_MODE" in
     ;;
 esac
 
-if [[ "$PLANNING_MODE" == "manual" && "$STEP" == "both" ]]; then
+if [[ "$PLANNING_MODE" == "manual" && "$STEP" == "all" ]]; then
   echo "--planning-mode manual requires --step source-ingest or --step standardize" >&2
   exit 1
 fi
@@ -619,7 +619,7 @@ for arg in args:
 PY
   )
 
-  if [[ "$step_name" != "source-ingest" || "$STEP" != "both" ]] && [[ "$WAIT_FOR_FINAL" == "true" ]]; then
+  if [[ "$step_name" == "dbt" || "$STEP" != "all" ]] && [[ "$WAIT_FOR_FINAL" == "true" ]]; then
     step_runner_args+=("--wait")
   fi
 
@@ -632,8 +632,13 @@ PY
   echo "  env:      ${ENVIRONMENT}"
   echo "$step_output" | sed 's/^/  /'
 
-  if [[ "$step_name" == "source-ingest" && "$STEP" == "both" ]]; then
+  if [[ "$STEP" == "all" && "$step_name" == "source-ingest" ]]; then
     echo "Waiting for source-ingest to finish before starting standardize..."
+    aws ecs wait tasks-stopped --region "$aws_region" --cluster "$cluster_arn" --tasks "$task_arn"
+  fi
+
+  if [[ "$STEP" == "all" && "$step_name" == "standardize" ]]; then
+    echo "Waiting for standardize to finish before starting dbt..."
     aws ecs wait tasks-stopped --region "$aws_region" --cluster "$cluster_arn" --tasks "$task_arn"
   fi
 }
@@ -648,8 +653,9 @@ case "$STEP" in
   dbt)
     run_step "dbt"
     ;;
-  both)
+  all)
     run_step "source-ingest"
     run_step "standardize"
+    run_step "dbt"
     ;;
 esac
