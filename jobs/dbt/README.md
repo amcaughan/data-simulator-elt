@@ -1,6 +1,10 @@
 # dbt
 
-dbt projects and shared model scaffolding live here.
+dbt runtime sources and shared model scaffolding live here.
+
+The shared ELT core stack publishes this directory as an immutable runtime image
+through the reusable `container-image` module, the same way it does for the
+other executable runtimes under `jobs/`.
 
 The initial expectation is:
 - one shared dbt runtime pattern

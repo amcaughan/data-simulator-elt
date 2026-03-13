@@ -12,6 +12,7 @@ This repository manages:
 - shared ELT control-plane resources
 - reusable workflow patterns
 - isolated storage and execution boundaries per workflow
+- runtime source trees that are built into workflow images
 - source-ingest landing runtimes
 - landing-to-processed standardization runtimes
 - dbt-based transformation layers over processed data
@@ -38,6 +39,7 @@ The intended data movement is:
 The shared core is expected to own:
 - ECS cluster
 - shared ECR repositories for job runtimes
+- container-image builds that publish immutable runtime images from `jobs/`
 - Glue database
 - Athena workgroup
 - Athena results storage
@@ -53,9 +55,7 @@ path will also need stream-service access.
 - `workflows/`
   workload-level intent and examples
 - `jobs/`
-  reusable containerized runtime types
-- `dbt/`
-  dbt project scaffolding and model layout
+  executable runtime source trees referenced by the shared `container-image` module
 - `infra/terragrunt/modules/`
   shared platform modules and workflow pattern modules
 - `infra/terragrunt/live/`

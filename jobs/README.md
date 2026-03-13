@@ -1,12 +1,19 @@
 # jobs
 
-Reusable containerized runtime code lives here.
+Executable runtime source trees live here.
+
+This directory is the canonical source for the shared `container-image` module
+in `infra/terragrunt/modules/`. The ELT core stack builds immutable runtime
+images from these directories and publishes image URIs for workflow stacks to
+consume.
 
 The initial job split is:
 - `source_ingest/`
   source-facing landing ingestion with generic slice orchestration and source adapters
 - `standardize/`
   landing-to-processed normalization into Parquet with source-specific parsers
+- `dbt/`
+  dbt project and runtime packaging for processed-to-marts transforms
 - `stream_emitter/`
   upstream source simulation for stream-oriented workflows
 

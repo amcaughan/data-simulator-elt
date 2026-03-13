@@ -21,5 +21,8 @@ inputs = {
   source_ingest_dockerfile_path               = "${get_repo_root()}/jobs/source_ingest/Dockerfile"
   standardize_source_dir                      = "${get_repo_root()}/jobs/standardize"
   standardize_dockerfile_path                 = "${get_repo_root()}/jobs/standardize/Dockerfile"
+  dbt_source_dir                              = "${get_repo_root()}/jobs/dbt"
+  dbt_requirements_file                       = "${get_repo_root()}/jobs/dbt/requirements.txt"
+  dbt_dockerfile_path                         = "${get_repo_root()}/jobs/dbt/Dockerfile"
   ssm_prefix                                  = "/services/data-simulator-elt/dev/core"
 }

@@ -16,6 +16,7 @@ dependency "core" {
     network_security_group_id         = "sg-placeholder"
     stream_emitter_ecr_repository_url = "111111111111.dkr.ecr.us-east-2.amazonaws.com/data-simulator-elt-prod-stream-emitter"
     dbt_ecr_repository_url            = "111111111111.dkr.ecr.us-east-2.amazonaws.com/data-simulator-elt-prod-dbt"
+    dbt_image_uri                     = "111111111111.dkr.ecr.us-east-2.amazonaws.com/data-simulator-elt-prod-dbt:sha-placeholder"
   }
 
   mock_outputs_allowed_terraform_commands = ["init", "validate", "plan"]
@@ -40,5 +41,5 @@ inputs = {
   stream_schedule_expression       = "rate(1 minute)"
   dbt_schedule_expression          = "cron(10 * * * ? *)"
   stream_emitter_container_image   = "${dependency.core.outputs.stream_emitter_ecr_repository_url}:latest"
-  dbt_container_image              = "${dependency.core.outputs.dbt_ecr_repository_url}:latest"
+  dbt_container_image              = dependency.core.outputs.dbt_image_uri
 }

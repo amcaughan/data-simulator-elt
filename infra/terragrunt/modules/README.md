@@ -6,7 +6,7 @@ The current split is:
 - `elt-core`
   shared control-plane resources for one environment
 - `container-image`
-  local Docker build-and-push helper for runtime images
+  local Docker build-and-push helper for runtime images sourced from `jobs/`
 - `isolated-storage`
   per-workflow landing, processed, and marts storage
 - `source-ingest-job`

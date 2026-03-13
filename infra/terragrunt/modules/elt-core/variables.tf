@@ -65,3 +65,15 @@ variable "standardize_source_dir" {
 variable "standardize_dockerfile_path" {
   type = string
 }
+
+variable "dbt_source_dir" {
+  type = string
+}
+
+variable "dbt_requirements_file" {
+  type = string
+}
+
+variable "dbt_dockerfile_path" {
+  type = string
+}

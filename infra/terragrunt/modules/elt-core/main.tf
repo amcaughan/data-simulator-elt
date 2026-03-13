@@ -192,6 +192,23 @@ module "standardize_image" {
   ]
 }
 
+module "dbt_image" {
+  count  = var.publish_runtime_images ? 1 : 0
+  source = "../container-image"
+
+  aws_region        = data.aws_region.current.name
+  repository_url    = aws_ecr_repository.this["dbt"].repository_url
+  dockerfile_path   = var.dbt_dockerfile_path
+  build_context_dir = var.jobs_build_context_dir
+  hash_dirs = [
+    var.dbt_source_dir,
+  ]
+  hash_files = [
+    var.dbt_requirements_file,
+    var.dbt_dockerfile_path,
+  ]
+}
+
 resource "aws_ssm_parameter" "ecs_cluster_name" {
   count = var.publish_ssm_parameters ? 1 : 0
 
