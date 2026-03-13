@@ -69,7 +69,7 @@ class StandardizeConfig:
                 partition_granularity=os.environ.get(
                     "OUTPUT_PARTITION_GRANULARITY", "day"
                 ),
-                mode=os.environ.get("MODE", "single_run"),
+                mode=os.environ.get("MODE", "live_hit"),
                 logical_date=os.environ.get("LOGICAL_DATE"),
                 start_at=os.environ.get("START_AT"),
                 end_at=os.environ.get("END_AT"),

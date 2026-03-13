@@ -4,9 +4,14 @@ Responsibilities:
 - iterate logical slices generically
 - delegate source fetch behavior to a named adapter
 - write exact source payloads into the landing bucket
-- support both single-run and backfill execution modes
+- support both live-hit and backfill execution modes
 
 Adapter-specific behavior lives under `adapters/`.
+
+Each source adapter must implement the abstract base in `adapters/base.py`:
+- `adapter_key()`
+- `from_ingest_config(...)`
+- `fetch(...)`
 
 For `simulator_api`, the adapter is responsible for:
 - interpreting logical slices as preset generate requests

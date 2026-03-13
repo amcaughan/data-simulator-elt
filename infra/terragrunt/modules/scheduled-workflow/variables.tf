@@ -73,7 +73,7 @@ variable "partition_granularity" {
 
 variable "source_ingest_mode" {
   type    = string
-  default = "single_run"
+  default = "live_hit"
 }
 
 variable "source_ingest_logical_date" {
@@ -106,7 +106,7 @@ variable "standardize_container_image" {
 
 variable "standardize_mode" {
   type    = string
-  default = "single_run"
+  default = "live_hit"
 }
 
 variable "standardize_logical_date" {

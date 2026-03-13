@@ -37,7 +37,7 @@ variable "partition_granularity" {
 
 variable "mode" {
   type    = string
-  default = "single_run"
+  default = "live_hit"
 }
 
 variable "logical_date" {

@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 
 
 VALID_GRANULARITIES = {"day", "hour"}
-VALID_MODES = {"single_run", "backfill"}
+VALID_MODES = {"live_hit", "backfill"}
 GRANULARITY_ORDER = {"day": 0, "hour": 1}
 
 
@@ -66,11 +66,12 @@ class SliceWindowConfig:
         if self.mode not in VALID_MODES:
             raise ValueError(f"MODE must be one of {sorted(VALID_MODES)}")
 
-        if self.mode == "single_run" and any(
+        if self.mode == "live_hit" and any(
             value is not None for value in (self.start_at, self.end_at, self.backfill_days)
         ):
             raise ValueError(
-                "Single-run mode cannot use START_AT, END_AT, or BACKFILL_DAYS"
+                "Live-hit mode cannot use START_AT, END_AT, or BACKFILL_DAYS. "
+                "Use LOGICAL_DATE to pin a one-off run to a specific logical slice."
             )
 
         if self.mode == "backfill":
@@ -89,7 +90,7 @@ class SliceWindowConfig:
         current_time = now or datetime.now(UTC)
         step = timedelta(days=1) if self.partition_granularity == "day" else timedelta(hours=1)
 
-        if self.mode == "single_run":
+        if self.mode == "live_hit":
             logical_date = truncate_datetime(
                 parse_iso_datetime(self.logical_date) if self.logical_date else current_time,
                 self.partition_granularity,

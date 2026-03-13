@@ -6,9 +6,13 @@ import sys
 import unittest
 from unittest.mock import patch
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "jobs"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "containers" / "shared"))
 
-from source_ingest.adapters.base import AdapterCapabilities, FetchResult
+from source_ingest.adapters.base import (
+    AdapterCapabilities,
+    FetchResult,
+    SourceAdapter,
+)
 from source_ingest.adapters.simulator_api import (
     SimulatorApiConfig,
     build_generate_payload,
@@ -18,8 +22,16 @@ from source_ingest.config import IngestConfig
 from source_ingest.runtime import build_landing_key, run_source_ingest
 
 
-class FakeAdapter:
+class FakeAdapter(SourceAdapter):
     capabilities = AdapterCapabilities(supports_backfill=True)
+
+    @classmethod
+    def adapter_key(cls) -> str:
+        return "fake"
+
+    @classmethod
+    def from_ingest_config(cls, config):
+        return cls()
 
     def fetch(self, logical_slice):
         return FetchResult(
@@ -31,8 +43,16 @@ class FakeAdapter:
         )
 
 
-class NonBackfillAdapter:
+class NonBackfillAdapter(SourceAdapter):
     capabilities = AdapterCapabilities(supports_backfill=False)
+
+    @classmethod
+    def adapter_key(cls) -> str:
+        return "non_backfill"
+
+    @classmethod
+    def from_ingest_config(cls, config):
+        return cls()
 
     def fetch(self, logical_slice):
         raise AssertionError("fetch should not be called when backfill is unsupported")
@@ -95,7 +115,7 @@ class SourceIngestTests(unittest.TestCase):
 
             values["slice_window"] = SliceWindowConfig(
                 partition_granularity="day",
-                mode="single_run",
+                mode="live_hit",
                 logical_date=None,
                 start_at=None,
                 end_at=None,
@@ -105,13 +125,13 @@ class SourceIngestTests(unittest.TestCase):
         config.validate()
         return config
 
-    def test_single_run_uses_truncated_logical_date(self):
+    def test_live_hit_uses_truncated_logical_date(self):
         from common.slices import SliceWindowConfig
 
         config = self.build_config(
             slice_window=SliceWindowConfig(
                 partition_granularity="hour",
-                mode="single_run",
+                mode="live_hit",
                 logical_date=None,
                 start_at=None,
                 end_at=None,
@@ -198,7 +218,7 @@ class SourceIngestTests(unittest.TestCase):
         config = self.build_config(
             slice_window=SliceWindowConfig(
                 partition_granularity="hour",
-                mode="single_run",
+                mode="live_hit",
                 logical_date="2026-03-12T08:00:00Z",
                 start_at=None,
                 end_at=None,
@@ -220,7 +240,7 @@ class SourceIngestTests(unittest.TestCase):
         config = self.build_config(
             slice_window=SliceWindowConfig(
                 partition_granularity="day",
-                mode="single_run",
+                mode="live_hit",
                 logical_date="2026-03-12",
                 start_at=None,
                 end_at=None,
@@ -261,7 +281,7 @@ class SourceIngestTests(unittest.TestCase):
         with patch(
             "source_ingest.runtime.build_adapter", return_value=NonBackfillAdapter()
         ):
-            with self.assertRaisesRegex(ValueError, "does not support backfill mode"):
+            with self.assertRaisesRegex(ValueError, "does not support MODE=backfill"):
                 run_source_ingest(config=config, s3_client=FakeS3Client())
 
 

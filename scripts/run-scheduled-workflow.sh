@@ -15,9 +15,9 @@ Required:
 Options:
   --env NAME                   Environment name. Default: dev
   --step NAME                  source-ingest | standardize | both. Default: both
-  --mode NAME                  single_run | backfill. Defaults to single_run,
+  --mode NAME                  live_hit | backfill. Defaults to live_hit,
                                or backfill if a range/backfill flag is supplied.
-  --logical-date ISO           Logical date for a single run.
+  --logical-date ISO           Logical date for a one-off live hit.
   --start-at ISO               Backfill range start.
   --end-at ISO                 Backfill range end.
   --backfill-days N            Backfill the previous N logical slices.
@@ -154,7 +154,7 @@ if [[ -z "$MODE" ]]; then
   if [[ -n "$START_AT" || -n "$END_AT" || -n "$BACKFILL_DAYS" ]]; then
     MODE="backfill"
   else
-    MODE="single_run"
+    MODE="live_hit"
   fi
 fi
 

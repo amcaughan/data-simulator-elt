@@ -4,7 +4,7 @@ from pathlib import Path
 import sys
 import unittest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "jobs"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "containers" / "shared"))
 
 try:
     import pyarrow  # noqa: F401
@@ -72,7 +72,7 @@ class StandardizeTests(unittest.TestCase):
             "landing_input_prefix": None,
             "slice_window": SliceWindowConfig(
                 partition_granularity="day",
-                mode="single_run",
+                mode="live_hit",
                 logical_date="2026-03-12",
                 start_at=None,
                 end_at=None,

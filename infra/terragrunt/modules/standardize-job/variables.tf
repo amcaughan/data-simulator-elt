@@ -54,7 +54,7 @@ variable "landing_input_prefix" {
 
 variable "mode" {
   type    = string
-  default = "single_run"
+  default = "live_hit"
 }
 
 variable "logical_date" {
