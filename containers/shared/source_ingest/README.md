@@ -6,6 +6,7 @@ Responsibilities:
 - delegate source fetch behavior to a named adapter
 - map fetch outputs onto planned storage targets and write exact source payloads
 - support different request types without baking source behavior into the runtime
+- write a sidecar manifest JSON for each landed payload
 
 Adapter-specific behavior lives under `adapters/`.
 
@@ -23,6 +24,15 @@ Planning lives outside `IngestConfig`:
 - `config.py` holds validated runtime data
 - `planning.py` expands runtime intent into a `FetchPlan`
 - a `FetchPlan` pairs one source fetch request with one or more storage targets
+- temporal slice planning is driven by `SLICE_GRANULARITY`
+- built-in slice granularities are `hour`, `day`, `month`, `quarter`, and `year`
+- `BACKFILL_COUNT` counts slices of the chosen granularity, not days
+
+Storage layout is generic:
+- `LANDING_BASE_PREFIX` can anchor a whole workflow under a client or project subpath
+- `LANDING_PARTITION_FIELDS_JSON` controls which temporal partition fields appear in object keys
+- `LANDING_PATH_SUFFIX_JSON` can append fixed subpath segments after the temporal partitions
+- the runtime writes both the payload object and a neighboring `.manifest.json` sidecar
 
 `FetchResult` is intentionally narrow:
 - one or more fetch outputs
