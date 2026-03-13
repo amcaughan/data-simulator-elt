@@ -33,8 +33,6 @@ def build_landing_prefix(config: StandardizeConfig, logical_slice: LogicalSlice)
     )
     partition_components = build_partition_components(
         partition_fields=partition_fields,
-        workflow_name=config.workflow_name,
-        source_adapter=config.source_adapter,
         logical_slice=logical_slice,
     )
     prefix = join_storage_path(
@@ -59,8 +57,6 @@ def _is_within_output_slice(
 def build_processed_key(config: StandardizeConfig, logical_slice: LogicalSlice) -> str:
     partition_components = build_partition_components(
         partition_fields=default_partition_fields(config.output_slice_granularity),
-        workflow_name=config.workflow_name,
-        source_adapter=config.source_adapter,
         logical_slice=logical_slice,
     )
     return join_storage_path(

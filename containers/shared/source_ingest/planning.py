@@ -41,8 +41,6 @@ def build_storage_target(config: IngestConfig, logical_slice: LogicalSlice) -> S
         logical_slice=slice_with_run_id,
         partition_components=build_partition_components(
             partition_fields=config.landing_layout.partition_fields,
-            workflow_name=config.workflow_name,
-            source_adapter=config.source_adapter,
             logical_slice=slice_with_run_id,
         ),
         object_stem=f"run_id={slice_with_run_id.run_id}",

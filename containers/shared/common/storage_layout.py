@@ -1,27 +1,12 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
-from common.slices import LogicalSlice
+from common.slices import GRANULARITY_ORDER, LogicalSlice
 
 
-SUPPORTED_PARTITION_FIELDS = {
-    "workflow",
-    "adapter",
-    "year",
-    "quarter",
-    "month",
-    "day",
-    "hour",
-}
-
-TEMPORAL_PARTITION_FIELDS_BY_GRANULARITY = {
-    "year": {"year"},
-    "quarter": {"year", "quarter"},
-    "month": {"year", "month"},
-    "day": {"year", "month", "day"},
-    "hour": {"year", "month", "day", "hour"},
-}
+PartitionValueBuilder = Callable[[LogicalSlice], str]
 
 
 @dataclass(frozen=True)
@@ -38,6 +23,60 @@ class StorageLayoutConfig:
     base_prefix: str | None
     partition_fields: tuple[str, ...]
     path_suffix: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class PartitionFieldSpec:
+    value_builder: PartitionValueBuilder
+    minimum_slice_granularity: str | None = None
+
+    def is_available_for(self, slice_granularity: str) -> bool:
+        if self.minimum_slice_granularity is None:
+            return True
+        return (
+            GRANULARITY_ORDER[slice_granularity]
+            <= GRANULARITY_ORDER[self.minimum_slice_granularity]
+        )
+
+
+PARTITION_FIELD_SPECS = {
+    "year": PartitionFieldSpec(
+        value_builder=lambda logical_slice: logical_slice.year,
+        minimum_slice_granularity="year",
+    ),
+    "quarter": PartitionFieldSpec(
+        value_builder=lambda logical_slice: logical_slice.quarter,
+        minimum_slice_granularity="quarter",
+    ),
+    "year_quarter": PartitionFieldSpec(
+        value_builder=lambda logical_slice: f"{logical_slice.year}{logical_slice.quarter}",
+        minimum_slice_granularity="quarter",
+    ),
+    "month": PartitionFieldSpec(
+        value_builder=lambda logical_slice: logical_slice.month,
+        minimum_slice_granularity="month",
+    ),
+    "year_month": PartitionFieldSpec(
+        value_builder=lambda logical_slice: f"{logical_slice.year}_{logical_slice.month}",
+        minimum_slice_granularity="month",
+    ),
+    "day": PartitionFieldSpec(
+        value_builder=lambda logical_slice: logical_slice.day,
+        minimum_slice_granularity="day",
+    ),
+    "date": PartitionFieldSpec(
+        value_builder=lambda logical_slice: (
+            f"{logical_slice.year}_{logical_slice.month}_{logical_slice.day}"
+        ),
+        minimum_slice_granularity="day",
+    ),
+    "hour": PartitionFieldSpec(
+        value_builder=lambda logical_slice: logical_slice.hour,
+        minimum_slice_granularity="hour",
+    ),
+}
+
+SUPPORTED_PARTITION_FIELDS = frozenset(PARTITION_FIELD_SPECS)
 
 
 def default_partition_fields(slice_granularity: str) -> tuple[str, ...]:
@@ -60,6 +99,22 @@ def validate_partition_fields(partition_fields: tuple[str, ...]) -> None:
         )
 
 
+def validate_partition_fields_for_granularity(
+    partition_fields: tuple[str, ...],
+    slice_granularity: str,
+) -> None:
+    unavailable_fields = sorted(
+        field_name
+        for field_name in partition_fields
+        if not PARTITION_FIELD_SPECS[field_name].is_available_for(slice_granularity)
+    )
+    if unavailable_fields:
+        raise ValueError(
+            f"Partition fields are too fine-grained for slice granularity "
+            f"'{slice_granularity}': {', '.join(unavailable_fields)}"
+        )
+
+
 def validate_path_segments(path_segments: tuple[str, ...]) -> None:
     invalid_segments = [
         segment
@@ -77,31 +132,22 @@ def trim_partition_fields_for_granularity(
     partition_fields: tuple[str, ...],
     slice_granularity: str,
 ) -> tuple[str, ...]:
-    allowed_temporal_fields = TEMPORAL_PARTITION_FIELDS_BY_GRANULARITY[slice_granularity]
-    trimmed_fields: list[str] = []
-    for field_name in partition_fields:
-        if field_name in {"workflow", "adapter"} or field_name in allowed_temporal_fields:
-            trimmed_fields.append(field_name)
-    return tuple(trimmed_fields)
+    return tuple(
+        field_name
+        for field_name in partition_fields
+        if PARTITION_FIELD_SPECS[field_name].is_available_for(slice_granularity)
+    )
 
 
 def build_partition_components(
     partition_fields: tuple[str, ...],
-    workflow_name: str,
-    source_adapter: str,
     logical_slice: LogicalSlice,
 ) -> tuple[PartitionComponent, ...]:
-    field_values = {
-        "workflow": workflow_name,
-        "adapter": source_adapter,
-        "year": logical_slice.year,
-        "quarter": logical_slice.quarter,
-        "month": logical_slice.month,
-        "day": logical_slice.day,
-        "hour": logical_slice.hour,
-    }
     return tuple(
-        PartitionComponent(key=field_name, value=field_values[field_name])
+        PartitionComponent(
+            key=field_name,
+            value=PARTITION_FIELD_SPECS[field_name].value_builder(logical_slice),
+        )
         for field_name in partition_fields
     )
 

@@ -11,6 +11,7 @@ from common.storage_layout import (
     default_partition_fields,
     validate_path_segments,
     validate_partition_fields,
+    validate_partition_fields_for_granularity,
 )
 
 
@@ -76,6 +77,14 @@ class IngestConfig:
                 start_at=os.environ.get("START_AT"),
                 end_at=os.environ.get("END_AT"),
                 backfill_count=_optional_int("BACKFILL_COUNT"),
+                timestamp_alignment_policy=os.environ.get(
+                    "SLICE_ALIGNMENT_POLICY",
+                    "floor",
+                ),
+                range_inclusion_policy=os.environ.get(
+                    "SLICE_RANGE_POLICY",
+                    "overlap",
+                ),
             ),
             landing_layout=StorageLayoutConfig(
                 base_prefix=os.environ.get("LANDING_BASE_PREFIX"),
@@ -97,6 +106,10 @@ class IngestConfig:
     def validate(self) -> None:
         self.slice_window.validate()
         validate_partition_fields(self.landing_layout.partition_fields)
+        validate_partition_fields_for_granularity(
+            self.landing_layout.partition_fields,
+            self.slice_granularity,
+        )
         validate_path_segments(self.landing_layout.path_suffix)
 
     @property

@@ -12,6 +12,7 @@ from common.storage_layout import (
     default_partition_fields,
     validate_path_segments,
     validate_partition_fields,
+    validate_partition_fields_for_granularity,
 )
 
 
@@ -105,6 +106,14 @@ class StandardizeConfig:
                 start_at=os.environ.get("START_AT"),
                 end_at=os.environ.get("END_AT"),
                 backfill_count=_optional_int("BACKFILL_COUNT"),
+                timestamp_alignment_policy=os.environ.get(
+                    "SLICE_ALIGNMENT_POLICY",
+                    "floor",
+                ),
+                range_inclusion_policy=os.environ.get(
+                    "SLICE_RANGE_POLICY",
+                    "overlap",
+                ),
             ),
             source_adapter_config=_json_env("SOURCE_ADAPTER_CONFIG_JSON"),
         )
@@ -118,6 +127,10 @@ class StandardizeConfig:
                 f"LANDING_SLICE_GRANULARITY must be one of {sorted(GRANULARITY_ORDER)}"
             )
         validate_partition_fields(self.landing_layout.partition_fields)
+        validate_partition_fields_for_granularity(
+            self.landing_layout.partition_fields,
+            self.landing_slice_granularity,
+        )
         validate_path_segments(self.landing_layout.path_suffix)
         if self.output_slice_granularity not in GRANULARITY_ORDER:
             raise ValueError(

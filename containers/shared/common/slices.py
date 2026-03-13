@@ -6,6 +6,8 @@ from datetime import UTC, datetime, timedelta
 
 
 VALID_MODES = {"live_hit", "backfill"}
+VALID_TIMESTAMP_ALIGNMENT_POLICIES = {"floor", "ceil", "strict"}
+VALID_RANGE_INCLUSION_POLICIES = {"overlap", "contained", "strict"}
 
 
 def parse_iso_datetime(raw: str) -> datetime:
@@ -87,15 +89,53 @@ class SliceGranularity(ABC):
     def shift(self, slice_start: datetime, count: int) -> datetime:
         raise NotImplementedError
 
+    def ceil(self, value: datetime) -> datetime:
+        normalized_value = _normalize_to_utc(value)
+        floored_value = self.floor(normalized_value)
+        if floored_value == normalized_value:
+            return floored_value
+        return self.shift(floored_value, 1)
+
+    def is_aligned(self, value: datetime) -> bool:
+        normalized_value = _normalize_to_utc(value)
+        return self.floor(normalized_value) == normalized_value
+
+    def resolve_slice_start(
+        self,
+        value: datetime,
+        alignment_policy: str,
+    ) -> datetime:
+        normalized_value = _normalize_to_utc(value)
+        if alignment_policy == "floor":
+            return self.floor(normalized_value)
+        if alignment_policy == "ceil":
+            return self.ceil(normalized_value)
+        if alignment_policy == "strict":
+            if not self.is_aligned(normalized_value):
+                raise ValueError(
+                    f"Timestamp {normalized_value.isoformat()} must align to "
+                    f"slice granularity '{self.name}' when SLICE_ALIGNMENT_POLICY='strict'"
+                )
+            return normalized_value
+        raise ValueError(
+            f"SLICE_ALIGNMENT_POLICY must be one of "
+            f"{sorted(VALID_TIMESTAMP_ALIGNMENT_POLICIES)}"
+        )
+
     def build_slice(
         self,
         value: datetime,
         *,
+        alignment_policy: str = "floor",
         treat_as_slice_start: bool = False,
         run_id: str | None = None,
     ) -> LogicalSlice:
         normalized_value = _normalize_to_utc(value)
-        slice_start = normalized_value if treat_as_slice_start else self.floor(normalized_value)
+        slice_start = (
+            normalized_value
+            if treat_as_slice_start
+            else self.resolve_slice_start(normalized_value, alignment_policy)
+        )
         return LogicalSlice(
             slice_start=slice_start,
             slice_end=self.shift(slice_start, 1),
@@ -201,11 +241,13 @@ def build_logical_slice(
     value: datetime,
     granularity: str,
     *,
+    alignment_policy: str = "floor",
     treat_as_slice_start: bool = False,
     run_id: str | None = None,
 ) -> LogicalSlice:
     return get_granularity(granularity).build_slice(
         value,
+        alignment_policy=alignment_policy,
         treat_as_slice_start=treat_as_slice_start,
         run_id=run_id,
     )
@@ -219,12 +261,25 @@ class SliceWindowConfig:
     start_at: str | None
     end_at: str | None
     backfill_count: int | None
+    timestamp_alignment_policy: str = "floor"
+    range_inclusion_policy: str = "overlap"
 
     def validate(self) -> None:
         get_granularity(self.slice_granularity)
 
         if self.mode not in VALID_MODES:
             raise ValueError(f"MODE must be one of {sorted(VALID_MODES)}")
+
+        if self.timestamp_alignment_policy not in VALID_TIMESTAMP_ALIGNMENT_POLICIES:
+            raise ValueError(
+                "SLICE_ALIGNMENT_POLICY must be one of "
+                f"{sorted(VALID_TIMESTAMP_ALIGNMENT_POLICIES)}"
+            )
+        if self.range_inclusion_policy not in VALID_RANGE_INCLUSION_POLICIES:
+            raise ValueError(
+                "SLICE_RANGE_POLICY must be one of "
+                f"{sorted(VALID_RANGE_INCLUSION_POLICIES)}"
+            )
 
         if self.mode == "live_hit" and any(
             value is not None for value in (self.start_at, self.end_at, self.backfill_count)
@@ -252,18 +307,47 @@ class SliceWindowConfig:
 
         if self.mode == "live_hit":
             anchor = parse_iso_datetime(self.logical_date) if self.logical_date else current_time
-            return [granularity.build_slice(anchor)]
+            return [
+                granularity.build_slice(
+                    anchor,
+                    alignment_policy=self.timestamp_alignment_policy,
+                )
+            ]
 
         if self.backfill_count is not None:
-            end_slice = granularity.build_slice(current_time)
+            end_slice = granularity.build_slice(
+                current_time,
+                alignment_policy=self.timestamp_alignment_policy,
+            )
             first_slice_start = granularity.shift(
                 end_slice.slice_start,
                 -(self.backfill_count - 1),
             )
             start_slice = granularity.build_slice(first_slice_start, treat_as_slice_start=True)
         else:
-            start_slice = granularity.build_slice(parse_iso_datetime(self.start_at))
-            end_slice = granularity.build_slice(parse_iso_datetime(self.end_at))
+            range_start = parse_iso_datetime(self.start_at)
+            range_end = parse_iso_datetime(self.end_at)
+
+            if range_start > range_end:
+                raise ValueError("START_AT must be less than or equal to END_AT")
+
+            if self.range_inclusion_policy == "strict":
+                if not granularity.is_aligned(range_start) or not granularity.is_aligned(range_end):
+                    raise ValueError(
+                        "START_AT and END_AT must align to slice boundaries when "
+                        "SLICE_RANGE_POLICY='strict'"
+                    )
+                start_slice = granularity.build_slice(range_start, treat_as_slice_start=True)
+                end_slice = granularity.build_slice(range_end, treat_as_slice_start=True)
+            else:
+                start_slice = granularity.build_slice(
+                    range_start,
+                    alignment_policy="floor",
+                )
+                end_slice = granularity.build_slice(
+                    range_end,
+                    alignment_policy="floor",
+                )
 
         if start_slice.slice_start > end_slice.slice_start:
             raise ValueError("START_AT must be less than or equal to END_AT")
@@ -271,6 +355,37 @@ class SliceWindowConfig:
         slices: list[LogicalSlice] = []
         cursor = start_slice.slice_start
         while cursor <= end_slice.slice_start:
-            slices.append(granularity.build_slice(cursor, treat_as_slice_start=True))
+            logical_slice = granularity.build_slice(cursor, treat_as_slice_start=True)
+            if self.backfill_count is None:
+                if self.range_inclusion_policy == "overlap":
+                    if not _slice_overlaps_range(logical_slice, range_start, range_end):
+                        cursor = granularity.shift(cursor, 1)
+                        continue
+                elif self.range_inclusion_policy == "contained":
+                    if not _slice_is_contained_in_range(logical_slice, range_start, range_end):
+                        cursor = granularity.shift(cursor, 1)
+                        continue
+            slices.append(logical_slice)
             cursor = granularity.shift(cursor, 1)
+
+        if not slices:
+            raise ValueError(
+                "The configured range and boundary policy do not include any logical slices"
+            )
         return slices
+
+
+def _slice_overlaps_range(
+    logical_slice: LogicalSlice,
+    range_start: datetime,
+    range_end: datetime,
+) -> bool:
+    return logical_slice.slice_end > range_start and logical_slice.slice_start <= range_end
+
+
+def _slice_is_contained_in_range(
+    logical_slice: LogicalSlice,
+    range_start: datetime,
+    range_end: datetime,
+) -> bool:
+    return logical_slice.slice_start >= range_start and logical_slice.slice_end <= range_end

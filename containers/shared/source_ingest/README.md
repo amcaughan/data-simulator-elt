@@ -30,7 +30,8 @@ Planning lives outside `IngestConfig`:
 
 Storage layout is generic:
 - `LANDING_BASE_PREFIX` can anchor a whole workflow under a client or project subpath
-- `LANDING_PARTITION_FIELDS_JSON` controls which temporal partition fields appear in object keys
+- `LANDING_PARTITION_FIELDS_JSON` controls which temporal or derived time fields appear in object keys
+- built-in derived partition fields include `year_quarter`, `year_month`, and `date`
 - `LANDING_PATH_SUFFIX_JSON` can append fixed subpath segments after the temporal partitions
 - the runtime writes both the payload object and a neighboring `.manifest.json` sidecar
 

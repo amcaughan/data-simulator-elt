@@ -70,7 +70,7 @@ class StandardizeTests(unittest.TestCase):
             "landing_slice_granularity": "hour",
             "landing_layout": StorageLayoutConfig(
                 base_prefix="client=acme/project=finance",
-                partition_fields=("workflow", "adapter", "year", "month", "day", "hour"),
+                partition_fields=("year", "month", "day", "hour"),
             ),
             "output_slice_granularity": "day",
             "processed_output_prefix": "raw",
@@ -100,7 +100,7 @@ class StandardizeTests(unittest.TestCase):
             prefix,
             (
                 "client=acme/project=finance/"
-                "workflow=polling-generated-events/adapter=simulator_api/year=2026/month=03/day=12/"
+                "year=2026/month=03/day=12/"
             ),
         )
 
@@ -123,16 +123,13 @@ class StandardizeTests(unittest.TestCase):
         config = self.build_config()
         logical_slice = config.iter_slices()[0]
         key_one = (
-            "client=acme/project=finance/workflow=polling-generated-events/"
-            "adapter=simulator_api/year=2026/month=03/day=12/hour=00/run_id=a.json"
+            "client=acme/project=finance/year=2026/month=03/day=12/hour=00/run_id=a.json"
         )
         key_two = (
-            "client=acme/project=finance/workflow=polling-generated-events/"
-            "adapter=simulator_api/year=2026/month=03/day=12/hour=01/run_id=b.json"
+            "client=acme/project=finance/year=2026/month=03/day=12/hour=01/run_id=b.json"
         )
         manifest_key = (
-            "client=acme/project=finance/workflow=polling-generated-events/"
-            "adapter=simulator_api/year=2026/month=03/day=12/hour=00/run_id=a.manifest.json"
+            "client=acme/project=finance/year=2026/month=03/day=12/hour=00/run_id=a.manifest.json"
         )
         landing_payload = {
             "row_count": 1,

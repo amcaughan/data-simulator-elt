@@ -432,7 +432,7 @@ class SourceIngestTests(unittest.TestCase):
         config = self.build_config(
             landing_layout=StorageLayoutConfig(
                 base_prefix="client=acme/project=finance",
-                partition_fields=("workflow", "year", "month"),
+                partition_fields=("year_month",),
             ),
             slice_window=SliceWindowConfig(
                 slice_granularity="hour",
@@ -451,10 +451,34 @@ class SourceIngestTests(unittest.TestCase):
         )
 
         self.assertTrue(key.startswith("client=acme/project=finance/"))
-        self.assertIn("workflow=polling-generated-events", key)
-        self.assertIn("year=2026/month=03", key)
-        self.assertNotIn("adapter=simulator_api", key)
+        self.assertIn("year_month=2026_03", key)
         self.assertNotIn("/day=12/", key)
+
+    def test_build_landing_key_supports_derived_partition_fields(self):
+        from common.slices import SliceWindowConfig
+
+        config = self.build_config(
+            landing_layout=StorageLayoutConfig(
+                base_prefix="client=acme",
+                partition_fields=("year_quarter", "date"),
+            ),
+            slice_window=SliceWindowConfig(
+                slice_granularity="day",
+                mode="live_hit",
+                logical_date="2026-03-12",
+                start_at=None,
+                end_at=None,
+                backfill_count=None,
+            ),
+        )
+
+        key = build_landing_key(
+            config,
+            build_storage_targets(config)[0],
+            "application/json",
+        )
+
+        self.assertIn("client=acme/year_quarter=2026Q1/date=2026_03_12/", key)
 
     def test_build_landing_key_appends_path_suffix_after_time_partitions(self):
         from common.slices import SliceWindowConfig
@@ -491,6 +515,25 @@ class SourceIngestTests(unittest.TestCase):
                     partition_fields=("year", "month", "day"),
                     path_suffix=("api/test",),
                 )
+            )
+
+    def test_config_rejects_partition_fields_finer_than_slice_granularity(self):
+        from common.slices import SliceWindowConfig
+
+        with self.assertRaisesRegex(ValueError, "too fine-grained"):
+            self.build_config(
+                landing_layout=StorageLayoutConfig(
+                    base_prefix="client=acme",
+                    partition_fields=("year_quarter", "day"),
+                ),
+                slice_window=SliceWindowConfig(
+                    slice_granularity="quarter",
+                    mode="backfill",
+                    logical_date=None,
+                    start_at=None,
+                    end_at=None,
+                    backfill_count=2,
+                ),
             )
 
     def test_run_source_ingest_writes_landing_object_and_manifest(self):
