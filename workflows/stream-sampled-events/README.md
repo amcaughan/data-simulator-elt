@@ -9,4 +9,4 @@ This workflow includes a simulated upstream producer.
 The stream emitter should be understood as test-source plumbing, not the core
 ELT transformation logic.
 
-This workflow owns its dbt project under `workflows/stream-sampled-events/dbt/`.
+This workflow owns its dbt project under `containers/workflows/stream-sampled-events/dbt/`.

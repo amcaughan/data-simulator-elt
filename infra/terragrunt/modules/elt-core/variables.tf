@@ -38,18 +38,18 @@ variable "publish_runtime_images" {
   default = true
 }
 
-variable "jobs_build_context_dir" {
+variable "shared_containers_build_context_dir" {
   type = string
 }
 
-variable "common_source_dir" {
+variable "shared_common_container_source_dir" {
   type = string
 }
 
-variable "source_ingest_source_dir" {
+variable "source_ingest_container_source_dir" {
   type = string
 }
 
-variable "standardize_source_dir" {
+variable "standardize_container_source_dir" {
   type = string
 }

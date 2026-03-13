@@ -6,4 +6,4 @@ Intent:
 - standardize landing files into day-level Parquet under `processed/raw`
 - later support dbt models for polling-style ingestion, repeated snapshots, and rolled-up event summaries
 
-This workflow owns its dbt project under `workflows/polling-generated-events/dbt/`.
+This workflow owns its dbt project under `containers/workflows/polling-generated-events/dbt/`.

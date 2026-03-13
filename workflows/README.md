@@ -7,9 +7,9 @@ Each workflow should explain:
 - what downstream transformations and marts it is meant to support
 
 Each workflow may also own:
-- a workflow-local `dbt/` project
+- a workflow-local dbt runtime under `containers/workflows/<workflow>/dbt/`
 - a workflow-specific dbt image
 
 That is intentional. Shared source-ingest and standardize runtimes live under
-`jobs/`, but transformation logic belongs to the workflow that owns the data
+`containers/shared/`, but transformation logic belongs to the workflow that owns the data
 boundary.

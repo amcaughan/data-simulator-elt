@@ -161,10 +161,10 @@ module "source_ingest_image" {
 
   aws_region        = data.aws_region.current.name
   repository_url    = aws_ecr_repository.this["source_ingest"].repository_url
-  runtime_source_dir = var.source_ingest_source_dir
-  build_context_dir = var.jobs_build_context_dir
+  runtime_source_dir = var.source_ingest_container_source_dir
+  build_context_dir = var.shared_containers_build_context_dir
   extra_hash_dirs = [
-    var.common_source_dir,
+    var.shared_common_container_source_dir,
   ]
 }
 
@@ -174,10 +174,10 @@ module "standardize_image" {
 
   aws_region        = data.aws_region.current.name
   repository_url    = aws_ecr_repository.this["standardize"].repository_url
-  runtime_source_dir = var.standardize_source_dir
-  build_context_dir = var.jobs_build_context_dir
+  runtime_source_dir = var.standardize_container_source_dir
+  build_context_dir = var.shared_containers_build_context_dir
   extra_hash_dirs = [
-    var.common_source_dir,
+    var.shared_common_container_source_dir,
   ]
 }
 

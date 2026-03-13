@@ -48,7 +48,7 @@ inputs = {
     request_overrides = {}
   })
   partition_granularity            = "hour"
-  dbt_source_dir                   = "${get_repo_root()}/workflows/polling-generated-events/dbt"
+  dbt_source_dir                   = "${get_repo_root()}/containers/workflows/polling-generated-events/dbt"
   source_ingest_container_image    = dependency.core.outputs.source_ingest_image_uri
   standardize_container_image      = dependency.core.outputs.standardize_image_uri
 }

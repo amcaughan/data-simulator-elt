@@ -38,6 +38,6 @@ inputs = {
   emission_rate_per_minute         = 60
   stream_schedule_expression       = "rate(1 minute)"
   dbt_schedule_expression          = "cron(10 * * * ? *)"
-  dbt_source_dir                   = "${get_repo_root()}/workflows/stream-sampled-events/dbt"
+  dbt_source_dir                   = "${get_repo_root()}/containers/workflows/stream-sampled-events/dbt"
   stream_emitter_container_image   = "${dependency.core.outputs.stream_emitter_ecr_repository_url}:latest"
 }
