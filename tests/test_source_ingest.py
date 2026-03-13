@@ -25,7 +25,9 @@ from source_ingest.runtime import build_landing_key, run_source_ingest
 
 
 class FakeAdapter(SourceAdapter):
-    capabilities = AdapterCapabilities(supports_backfill=True)
+    capabilities = AdapterCapabilities(
+        supported_pull_request_types=(LivePullRequest, HistoricalSlicePullRequest)
+    )
 
     @classmethod
     def adapter_key(cls) -> str:
@@ -35,7 +37,7 @@ class FakeAdapter(SourceAdapter):
     def from_ingest_config(cls, config):
         return cls()
 
-    def fetch(self, pull_request):
+    def _fetch(self, pull_request):
         return FetchResult(
             body=b'{"row_count": 3, "rows": []}',
             content_type="application/json",
@@ -45,18 +47,18 @@ class FakeAdapter(SourceAdapter):
         )
 
 
-class NonBackfillAdapter(SourceAdapter):
-    capabilities = AdapterCapabilities(supports_backfill=False)
+class LiveOnlyAdapter(SourceAdapter):
+    capabilities = AdapterCapabilities()
 
     @classmethod
     def adapter_key(cls) -> str:
-        return "non_backfill"
+        return "live_only"
 
     @classmethod
     def from_ingest_config(cls, config):
         return cls()
 
-    def fetch(self, pull_request):
+    def _fetch(self, pull_request):
         raise AssertionError("fetch should not be called when backfill is unsupported")
 
 
@@ -193,6 +195,7 @@ class SourceIngestTests(unittest.TestCase):
 
         self.assertEqual(len(pull_requests), 1)
         self.assertIsInstance(pull_requests[0], LivePullRequest)
+        self.assertEqual(pull_requests[0].mode, "live_hit")
         self.assertEqual(
             pull_requests[0].logical_slice.logical_date,
             datetime(2026, 3, 12, 10, 0, tzinfo=UTC),
@@ -218,6 +221,7 @@ class SourceIngestTests(unittest.TestCase):
 
         self.assertEqual(len(pull_requests), 2)
         self.assertIsInstance(pull_requests[0], HistoricalSlicePullRequest)
+        self.assertEqual(pull_requests[0].mode, "backfill")
         self.assertEqual(
             pull_requests[0].slice_start.isoformat(),
             "2026-03-11T00:00:00+00:00",
@@ -319,7 +323,7 @@ class SourceIngestTests(unittest.TestCase):
         self.assertEqual(put_call["Metadata"]["workflow_name"], "polling-generated-events")
         self.assertEqual(put_call["Metadata"]["preset_id"], "transaction_benchmark")
 
-    def test_run_source_ingest_rejects_unsupported_backfill(self):
+    def test_run_source_ingest_rejects_unsupported_pull_request_type(self):
         from common.slices import SliceWindowConfig
 
         config = self.build_config(
@@ -335,9 +339,12 @@ class SourceIngestTests(unittest.TestCase):
         )
 
         with patch(
-            "source_ingest.runtime.build_adapter", return_value=NonBackfillAdapter()
+            "source_ingest.runtime.build_adapter", return_value=LiveOnlyAdapter()
         ):
-            with self.assertRaisesRegex(ValueError, "does not support MODE=backfill"):
+            with self.assertRaisesRegex(
+                ValueError,
+                "does not support pull request type 'HistoricalSlicePullRequest'",
+            ):
                 run_source_ingest(config=config, s3_client=FakeS3Client())
 
 

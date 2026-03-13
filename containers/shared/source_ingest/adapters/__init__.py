@@ -5,6 +5,7 @@ from source_ingest.adapters.base import (
     LivePullRequest,
     SourceAdapter,
     SourcePullRequest,
+    UnsupportedSourcePullRequestError,
 )
 from source_ingest.adapters.registry import build_adapter
 from source_ingest.adapters.simulator_api import SimulatorApiAdapter
@@ -16,5 +17,6 @@ __all__ = [
     "LivePullRequest",
     "SourceAdapter",
     "SourcePullRequest",
+    "UnsupportedSourcePullRequestError",
     "build_adapter",
 ]

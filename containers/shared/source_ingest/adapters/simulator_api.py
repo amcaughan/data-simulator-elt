@@ -105,7 +105,9 @@ class SimulatorApiConfig:
 
 
 class SimulatorApiAdapter(SourceAdapter):
-    capabilities = AdapterCapabilities(supports_backfill=True)
+    capabilities = AdapterCapabilities(
+        supported_pull_request_types=(LivePullRequest, HistoricalSlicePullRequest)
+    )
 
     @classmethod
     def adapter_key(cls) -> str:
@@ -138,7 +140,7 @@ class SimulatorApiAdapter(SourceAdapter):
         self.source_base_url = source_base_url
         self.adapter_config = adapter_config
 
-    def fetch(self, pull_request: SourcePullRequest) -> FetchResult:
+    def _fetch(self, pull_request: SourcePullRequest) -> FetchResult:
         route = f"/v1/presets/{self.adapter_config.preset_id}/generate"
         url = urllib.parse.urljoin(
             self.source_base_url.rstrip("/") + "/",

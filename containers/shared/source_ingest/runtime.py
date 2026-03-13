@@ -97,7 +97,6 @@ class LandingWriter:
 
 def run_source_ingest(config: IngestConfig, s3_client) -> list[LandingObject]:
     adapter = build_adapter(config)
-    adapter.ensure_supported(config.mode)
     writer = LandingWriter(config=config, s3_client=s3_client)
     results: list[LandingObject] = []
 
