@@ -33,7 +33,7 @@ Each workflow should be understandable in isolation:
 
 The intended data movement is:
 - source ingest writes exact payloads into `landing`
-- standardization jobs normalize and move data into `processed/raw`
+- standardization jobs normalize and move data into `processed/bronze`
 - dbt builds consumer-facing models from `processed` into `marts`
 
 The shared core is expected to own:
