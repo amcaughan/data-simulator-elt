@@ -7,7 +7,8 @@ Usage:
   ./scripts/run-scheduled-workflow.sh --workflow WORKFLOW [options]
 
 Run one-off ECS tasks for a scheduled workflow stack without changing the
-scheduler resources. This is useful for manual ingest runs and quick backfills.
+scheduler resources. This resolves workflow outputs, then delegates to the
+lower-level ECS step runner.
 
 Required:
   --workflow NAME              Workflow stack under infra/terragrunt/live/<env>/
@@ -58,6 +59,7 @@ EOF
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+STEP_RUNNER="${REPO_ROOT}/scripts/run-ecs-step.sh"
 
 ENVIRONMENT="dev"
 WORKFLOW_NAME=""
@@ -266,6 +268,11 @@ if [[ ! -d "$STACK_DIR" ]]; then
   exit 1
 fi
 
+if [[ ! -f "$STEP_RUNNER" ]]; then
+  echo "Missing step runner script: ${STEP_RUNNER}" >&2
+  exit 1
+fi
+
 OUTPUTS_FILE="$(mktemp)"
 trap 'rm -f "$OUTPUTS_FILE"' EXIT
 
@@ -324,7 +331,7 @@ run_step() {
 import json
 import os
 import sys
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 outputs = json.loads(Path(os.environ["OUTPUTS_FILE"]).read_text())
@@ -419,65 +426,76 @@ if step_name == "standardize":
         )
 
 started_by = f"manual-{os.environ['WORKFLOW_NAME']}-{step_name}"
-created_on = datetime.now(UTC).date().isoformat()
-payload = {
-    "cluster": cluster_arn,
-    "launchType": "FARGATE",
-    "taskDefinition": task_definition,
-    "startedBy": started_by,
-    "tags": [
-        {"key": "auto_cleanup", "value": "true"},
-        {"key": "cleanup_schedule", "value": "daily"},
-        {"key": "created_on", "value": created_on},
-    ],
-    "networkConfiguration": {
-        "awsvpcConfiguration": {
-            "subnets": subnets,
-            "securityGroups": [security_group],
-            "assignPublicIp": "DISABLED",
-        }
-    },
-    "overrides": {
-        "containerOverrides": [
-            {
-                "name": container_name,
-                "environment": env,
-            }
-        ]
-    },
-}
+created_on = datetime.now(timezone.utc).date().isoformat()
 
-sys.stdout.write(json.dumps({"region": aws_region, "payload": payload}))
+sys.stdout.write(
+    json.dumps(
+        {
+            "region": aws_region,
+            "cluster": cluster_arn,
+            "task_definition": task_definition,
+            "container_name": container_name,
+            "subnets": subnets,
+            "security_group": security_group,
+            "started_by": started_by,
+            "tags": [
+                "auto_cleanup=true",
+                "cleanup_schedule=daily",
+                f"created_on={created_on}",
+            ],
+            "environment": [f"{item['name']}={item['value']}" for item in env],
+        }
+    )
+)
 PY
   )"
 
-  local aws_region task_arn
+  local aws_region cluster_arn task_arn
   aws_region="$(python3 -c 'import json,sys; print(json.loads(sys.stdin.read())["region"])' <<<"$cli_input")"
-  task_arn="$(
-    python3 -c 'import json,sys; print(json.dumps(json.loads(sys.stdin.read())["payload"]))' <<<"$cli_input" \
-      | aws ecs run-task \
-          --region "$aws_region" \
-          --cli-input-json file:///dev/stdin \
-          --query 'tasks[0].taskArn' \
-          --output text
-  )"
+  cluster_arn="$(python3 -c 'import json,sys; print(json.loads(sys.stdin.read())["cluster"])' <<<"$cli_input")"
+  mapfile -t step_runner_args < <(
+    CLI_INPUT="$cli_input" python3 - <<'PY'
+import json
+import os
+import shlex
+import sys
 
-  if [[ "$task_arn" == "None" || -z "$task_arn" ]]; then
-    echo "Failed to start ${step_name} task" >&2
-    exit 1
+payload = json.loads(os.environ["CLI_INPUT"])
+args = [
+    "--region", payload["region"],
+    "--cluster", payload["cluster"],
+    "--task-definition", payload["task_definition"],
+    "--container", payload["container_name"],
+    "--subnets", json.dumps(payload["subnets"]),
+    "--security-group", payload["security_group"],
+    "--started-by", payload["started_by"],
+]
+for tag in payload["tags"]:
+    args.extend(["--tag", tag])
+for env_item in payload["environment"]:
+    args.extend(["--env", env_item])
+
+for arg in args:
+    print(arg)
+PY
+  )
+
+  if [[ "$step_name" != "source-ingest" || "$STEP" != "both" ]] && [[ "$WAIT_FOR_FINAL" == "true" ]]; then
+    step_runner_args+=("--wait")
   fi
+
+  local step_output
+  step_output="$("$STEP_RUNNER" "${step_runner_args[@]}")"
+  task_arn="$(awk '/^  task:/{print $2}' <<<"$step_output")"
 
   echo "Started ${step_name} task:"
   echo "  workflow: ${WORKFLOW_NAME}"
   echo "  env:      ${ENVIRONMENT}"
-  echo "  task:     ${task_arn}"
+  echo "$step_output" | sed 's/^/  /'
 
   if [[ "$step_name" == "source-ingest" && "$STEP" == "both" ]]; then
     echo "Waiting for source-ingest to finish before starting standardize..."
-    aws ecs wait tasks-stopped --region "$aws_region" --cluster "$(python3 -c 'import json,sys; print(json.loads(sys.stdin.read())["payload"]["cluster"])' <<<"$cli_input")" --tasks "$task_arn"
-  elif [[ "$WAIT_FOR_FINAL" == "true" ]]; then
-    echo "Waiting for ${step_name} to stop..."
-    aws ecs wait tasks-stopped --region "$aws_region" --cluster "$(python3 -c 'import json,sys; print(json.loads(sys.stdin.read())["payload"]["cluster"])' <<<"$cli_input")" --tasks "$task_arn"
+    aws ecs wait tasks-stopped --region "$aws_region" --cluster "$cluster_arn" --tasks "$task_arn"
   fi
 }
 

@@ -1,4 +1,4 @@
-FROM ubuntu:22.04
+FROM python:3.13-slim-bookworm
 ENV DEBIAN_FRONTEND=noninteractive
 
 ARG TERRAFORM_VERSION=1.14.2
@@ -10,9 +10,6 @@ RUN apt-get update && apt-get install -y \
     curl \
     docker.io \
     jq \
-    python3 \
-    python3-pip \
-    python3-venv \
     unzip \
     ca-certificates \
   && rm -rf /var/lib/apt/lists/*
@@ -33,7 +30,7 @@ RUN curl -fsSL "https://github.com/gruntwork-io/terragrunt/releases/download/${T
     -o /usr/local/bin/terragrunt \
   && chmod +x /usr/local/bin/terragrunt
 
-HEALTHCHECK CMD bash -lc 'command -v aws && command -v terraform && command -v terragrunt && command -v python3 && command -v pip3' || exit 1
+HEALTHCHECK CMD bash -lc 'command -v aws && command -v terraform && command -v terragrunt && command -v python3 && command -v pip3 && python3 --version' || exit 1
 
 USER dev
 WORKDIR /workspace
