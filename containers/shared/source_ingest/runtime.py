@@ -7,8 +7,9 @@ import mimetypes
 
 from common.slices import LogicalSlice
 from source_ingest.adapters import build_adapter
+from source_ingest.adapters.base import FetchOutput, FetchResult
 from source_ingest.config import IngestConfig
-from source_ingest.planning import build_pull_requests
+from source_ingest.planning import FetchPlan, StorageTarget, build_fetch_plan
 
 
 @dataclass(frozen=True)
@@ -27,7 +28,7 @@ def build_object_suffix(content_type: str) -> str:
     suffix = mimetypes.guess_extension(normalized_content_type, strict=False)
     if suffix is not None:
         return suffix
-    return ".bin"
+    return ""
 
 
 def build_landing_key(
@@ -102,19 +103,67 @@ class LandingWriter:
         )
 
 
+def map_fetch_outputs(
+    plan: FetchPlan,
+    fetched: FetchResult,
+) -> list[tuple[StorageTarget, FetchOutput]]:
+    if len(plan.storage_targets) == 1 and len(fetched.outputs) == 1:
+        output = fetched.outputs[0]
+        target = plan.storage_targets[0]
+        if output.logical_date not in {None, target.logical_slice.logical_date}:
+            raise ValueError(
+                "Single-output fetch result logical_date does not match the planned "
+                "storage target"
+            )
+        return [(target, output)]
+
+    outputs_by_date: dict[datetime, FetchOutput] = {}
+    for output in fetched.outputs:
+        if output.logical_date is None:
+            raise ValueError(
+                "Multi-target fetch results must label each output with logical_date"
+            )
+        if output.logical_date in outputs_by_date:
+            raise ValueError(
+                f"Duplicate fetch output logical_date: {output.logical_date.isoformat()}"
+            )
+        outputs_by_date[output.logical_date] = output
+
+    assignments: list[tuple[StorageTarget, FetchOutput]] = []
+    for target in plan.storage_targets:
+        logical_date = target.logical_slice.logical_date
+        try:
+            output = outputs_by_date.pop(logical_date)
+        except KeyError as exc:
+            raise ValueError(
+                f"Missing fetch output for logical_date {logical_date.isoformat()}"
+            ) from exc
+        assignments.append((target, output))
+
+    if outputs_by_date:
+        unexpected_dates = ", ".join(
+            logical_date.isoformat() for logical_date in sorted(outputs_by_date)
+        )
+        raise ValueError(f"Received unexpected fetch outputs for logical dates: {unexpected_dates}")
+
+    return assignments
+
+
 def run_source_ingest(config: IngestConfig, s3_client) -> list[LandingObject]:
     adapter = build_adapter(config)
     writer = LandingWriter(config=config, s3_client=s3_client)
     results: list[LandingObject] = []
 
-    for pull_request in build_pull_requests(config):
-        logical_slice = pull_request.logical_slice
-        fetched = adapter.fetch(pull_request)
+    plan = build_fetch_plan(config)
+    fetched = adapter.fetch(plan.request)
+
+    for storage_target, output in map_fetch_outputs(plan, fetched):
+        logical_slice = storage_target.logical_slice
         landing_object = writer.write(
             logical_slice=logical_slice,
-            body=fetched.body,
-            content_type=fetched.content_type,
-            adapter_metadata=fetched.metadata,
+            body=output.body,
+            content_type=output.content_type,
+            adapter_metadata=output.metadata,
         )
         print(
             json.dumps(
@@ -123,8 +172,8 @@ def run_source_ingest(config: IngestConfig, s3_client) -> list[LandingObject]:
                     "bucket": landing_object.bucket_name,
                     "key": landing_object.key,
                     "logical_date": logical_slice.logical_date.isoformat(),
-                    "mode": pull_request.mode,
-                    "content_type": fetched.content_type,
+                    "request_kind": plan.request.kind,
+                    "content_type": output.content_type,
                 }
             )
         )

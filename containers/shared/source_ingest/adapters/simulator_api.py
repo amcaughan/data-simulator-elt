@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 import hashlib
 import json
 import os
@@ -9,14 +10,16 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from common.slices import LogicalSlice
 from source_ingest.adapters.base import (
     AdapterCapabilities,
+    FetchOutput,
     FetchResult,
-    HistoricalSlicePullRequest,
-    LivePullRequest,
+    LiveFetchRequest,
+    MultiSliceFetchRequest,
+    RequestedSlice,
+    SliceFetchRequest,
     SourceAdapter,
-    SourcePullRequest,
+    SourceFetchRequest,
 )
 from source_ingest.config import IngestConfig
 
@@ -46,7 +49,7 @@ def build_generate_payload(
 def derive_seed(
     workflow_name: str,
     preset_id: str,
-    logical_slice: LogicalSlice,
+    logical_date: datetime | None,
     strategy: str,
     fixed_seed: int | None,
 ) -> int | None:
@@ -54,12 +57,14 @@ def derive_seed(
         return None
     if strategy == "fixed":
         return fixed_seed
+    if logical_date is None:
+        return None
 
     namespace = "|".join(
         [
             workflow_name,
             preset_id,
-            logical_slice.logical_date.isoformat(),
+            logical_date.isoformat(),
         ]
     )
     digest = hashlib.sha256(namespace.encode("utf-8")).hexdigest()
@@ -123,7 +128,11 @@ class SimulatorApiRuntimeConfig:
 
 class SimulatorApiAdapter(SourceAdapter):
     capabilities = AdapterCapabilities(
-        supported_pull_request_types=(LivePullRequest, HistoricalSlicePullRequest)
+        supported_request_types=(
+            LiveFetchRequest,
+            SliceFetchRequest,
+            MultiSliceFetchRequest,
+        )
     )
 
     @classmethod
@@ -153,19 +162,45 @@ class SimulatorApiAdapter(SourceAdapter):
         self.runtime_config = runtime_config
         self.adapter_config = adapter_config
 
-    def _fetch(self, pull_request: SourcePullRequest) -> FetchResult:
+    def _fetch(self, request: SourceFetchRequest) -> FetchResult:
+        if isinstance(request, LiveFetchRequest):
+            return self._fetch_live(request)
+        if isinstance(request, SliceFetchRequest):
+            return self._fetch_slice(request)
+        if isinstance(request, MultiSliceFetchRequest):
+            return self._fetch_multi_slice(request)
+        raise TypeError(f"Unsupported request type: {type(request)!r}")
+
+    def _fetch_live(self, request: LiveFetchRequest) -> FetchResult:
+        output = self._fetch_generate_output(logical_date=None)
+        return FetchResult(outputs=(output,))
+
+    def _fetch_slice(self, request: SliceFetchRequest) -> FetchResult:
+        output = self._fetch_generate_output(logical_date=request.slice.logical_date)
+        return FetchResult(outputs=(output,))
+
+    def _fetch_multi_slice(self, request: MultiSliceFetchRequest) -> FetchResult:
+        return FetchResult(
+            outputs=tuple(
+                self._fetch_generate_output(logical_date=requested_slice.logical_date)
+                for requested_slice in request.slices
+            )
+        )
+
+    def _fetch_generate_output(self, logical_date: datetime | None) -> FetchOutput:
         route = f"/v1/presets/{self.adapter_config.preset_id}/generate"
         url = urllib.parse.urljoin(
             self.runtime_config.source_base_url.rstrip("/") + "/",
             route.lstrip("/"),
         )
-        payload = self._build_payload(pull_request)
+        payload = self._build_generate_payload(logical_date)
         response_bytes, content_type = self._signed_post(url, payload)
         parsed = json.loads(response_bytes.decode("utf-8"))
-        return FetchResult(
+        return FetchOutput(
             body=response_bytes,
             content_type=content_type,
             metadata=self._build_response_metadata(parsed=parsed, route=route),
+            logical_date=logical_date,
         )
 
     def _build_response_metadata(
@@ -182,33 +217,14 @@ class SimulatorApiAdapter(SourceAdapter):
             metadata["row_count"] = str(row_count)
         return metadata
 
-    def _build_payload(self, pull_request: SourcePullRequest) -> dict[str, Any]:
-        if isinstance(pull_request, LivePullRequest):
-            return self._build_live_payload(pull_request)
-        if isinstance(pull_request, HistoricalSlicePullRequest):
-            return self._build_historical_payload(pull_request)
-        raise TypeError(f"Unsupported pull request type: {type(pull_request)!r}")
-
-    def _build_live_payload(self, pull_request: LivePullRequest) -> dict[str, Any]:
-        return self._build_generate_payload_for_slice(pull_request.logical_slice)
-
-    def _build_historical_payload(
-        self,
-        pull_request: HistoricalSlicePullRequest,
-    ) -> dict[str, Any]:
-        return self._build_generate_payload_for_slice(pull_request.logical_slice)
-
-    def _build_generate_payload_for_slice(
-        self,
-        logical_slice: LogicalSlice,
-    ) -> dict[str, Any]:
+    def _build_generate_payload(self, logical_date: datetime | None) -> dict[str, Any]:
         return build_generate_payload(
             request_overrides=self.adapter_config.request_overrides,
             row_count=self.adapter_config.row_count,
             seed=derive_seed(
                 workflow_name=self.workflow_name,
                 preset_id=self.adapter_config.preset_id,
-                logical_slice=logical_slice,
+                logical_date=logical_date,
                 strategy=self.adapter_config.seed_strategy,
                 fixed_seed=self.adapter_config.fixed_seed,
             ),

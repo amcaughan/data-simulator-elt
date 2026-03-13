@@ -5,45 +5,78 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import TYPE_CHECKING, ClassVar, Literal, TypeAlias
 
-from common.slices import LogicalSlice
-
 if TYPE_CHECKING:
     from source_ingest.config import IngestConfig
 
 
 @dataclass(frozen=True)
-class LivePullRequest:
-    logical_slice: LogicalSlice
-    mode: Literal["live_hit"] = field(init=False, default="live_hit")
+class RequestedSlice:
+    logical_date: datetime
+    slice_start: datetime
+    slice_end: datetime
 
 
 @dataclass(frozen=True)
-class HistoricalSlicePullRequest:
-    logical_slice: LogicalSlice
-    slice_start: datetime
-    slice_end: datetime
-    mode: Literal["backfill"] = field(init=False, default="backfill")
+class LiveFetchRequest:
+    kind: Literal["live"] = field(init=False, default="live")
 
 
-SourcePullRequest: TypeAlias = LivePullRequest | HistoricalSlicePullRequest
-SourcePullRequestType: TypeAlias = (
-    type[LivePullRequest] | type[HistoricalSlicePullRequest]
+@dataclass(frozen=True)
+class SliceFetchRequest:
+    slice: RequestedSlice
+    kind: Literal["slice"] = field(init=False, default="slice")
+
+
+@dataclass(frozen=True)
+class MultiSliceFetchRequest:
+    slices: tuple[RequestedSlice, ...]
+    kind: Literal["multi_slice"] = field(init=False, default="multi_slice")
+
+
+SourceFetchRequest: TypeAlias = LiveFetchRequest | SliceFetchRequest | MultiSliceFetchRequest
+SourceFetchRequestType: TypeAlias = (
+    type[LiveFetchRequest] | type[SliceFetchRequest] | type[MultiSliceFetchRequest]
 )
 
 
 @dataclass(frozen=True)
 class AdapterCapabilities:
-    supported_pull_request_types: tuple[SourcePullRequestType, ...] = (LivePullRequest,)
+    supported_request_types: tuple[SourceFetchRequestType, ...] = (LiveFetchRequest,)
+
+
+@dataclass(frozen=True)
+class FetchOutput:
+    body: bytes
+    content_type: str
+    metadata: dict[str, str] = field(default_factory=dict)
+    logical_date: datetime | None = None
 
 
 @dataclass(frozen=True)
 class FetchResult:
-    body: bytes
-    content_type: str
-    metadata: dict[str, str] = field(default_factory=dict)
+    outputs: tuple[FetchOutput, ...]
+
+    @classmethod
+    def single(
+        cls,
+        body: bytes,
+        content_type: str,
+        metadata: dict[str, str] | None = None,
+        logical_date: datetime | None = None,
+    ) -> "FetchResult":
+        return cls(
+            outputs=(
+                FetchOutput(
+                    body=body,
+                    content_type=content_type,
+                    metadata=metadata or {},
+                    logical_date=logical_date,
+                ),
+            )
+        )
 
 
-class UnsupportedSourcePullRequestError(ValueError):
+class UnsupportedSourceRequestError(ValueError):
     pass
 
 
@@ -60,34 +93,34 @@ class SourceAdapter(ABC):
     def from_ingest_config(cls, config: "IngestConfig") -> "SourceAdapter":
         raise NotImplementedError
 
-    def fetch(self, pull_request: SourcePullRequest) -> FetchResult:
-        self.validate_pull_request(pull_request)
-        return self._fetch(pull_request)
+    def fetch(self, request: SourceFetchRequest) -> FetchResult:
+        self.validate_request(request)
+        return self._fetch(request)
 
-    def validate_pull_request(self, pull_request: SourcePullRequest) -> None:
-        if isinstance(pull_request, self.capabilities.supported_pull_request_types):
+    def validate_request(self, request: SourceFetchRequest) -> None:
+        if isinstance(request, self.capabilities.supported_request_types):
             return
 
         supported_types = ", ".join(
-            pull_type.__name__
-            for pull_type in self.capabilities.supported_pull_request_types
+            request_type.__name__
+            for request_type in self.capabilities.supported_request_types
         )
-        raise UnsupportedSourcePullRequestError(
-            f"Source adapter '{self.adapter_key()}' does not support pull request type "
-            f"'{type(pull_request).__name__}' for mode '{pull_request.mode}'. "
-            f"Supported pull request types: {supported_types}"
+        raise UnsupportedSourceRequestError(
+            f"Source adapter '{self.adapter_key()}' does not support request type "
+            f"'{type(request).__name__}' for kind '{request.kind}'. "
+            f"Supported request types: {supported_types}"
         )
 
     @abstractmethod
-    def _fetch(self, pull_request: SourcePullRequest) -> FetchResult:
+    def _fetch(self, request: SourceFetchRequest) -> FetchResult:
         raise NotImplementedError
 
-    def unsupported_pull_request_error(
+    def unsupported_request_error(
         self,
-        pull_request: SourcePullRequest,
+        request: SourceFetchRequest,
         detail: str,
-    ) -> UnsupportedSourcePullRequestError:
-        return UnsupportedSourcePullRequestError(
+    ) -> UnsupportedSourceRequestError:
+        return UnsupportedSourceRequestError(
             f"Source adapter '{self.adapter_key()}' cannot handle "
-            f"'{type(pull_request).__name__}' for mode '{pull_request.mode}': {detail}"
+            f"'{type(request).__name__}' for kind '{request.kind}': {detail}"
         )

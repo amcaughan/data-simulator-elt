@@ -10,9 +10,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "containers" / "sha
 
 from source_ingest.adapters.base import (
     AdapterCapabilities,
+    FetchOutput,
     FetchResult,
-    HistoricalSlicePullRequest,
-    LivePullRequest,
+    LiveFetchRequest,
+    MultiSliceFetchRequest,
+    RequestedSlice,
+    SliceFetchRequest,
     SourceAdapter,
 )
 from source_ingest.adapters.simulator_api import (
@@ -22,13 +25,17 @@ from source_ingest.adapters.simulator_api import (
     derive_seed,
 )
 from source_ingest.config import IngestConfig
-from source_ingest.planning import build_logical_slices, build_pull_requests
-from source_ingest.runtime import build_landing_key, run_source_ingest
+from source_ingest.planning import FetchPlan, build_fetch_plan, build_storage_targets
+from source_ingest.runtime import build_landing_key, map_fetch_outputs, run_source_ingest
 
 
 class FakeAdapter(SourceAdapter):
     capabilities = AdapterCapabilities(
-        supported_pull_request_types=(LivePullRequest, HistoricalSlicePullRequest)
+        supported_request_types=(
+            LiveFetchRequest,
+            SliceFetchRequest,
+            MultiSliceFetchRequest,
+        )
     )
 
     @classmethod
@@ -39,15 +46,31 @@ class FakeAdapter(SourceAdapter):
     def from_ingest_config(cls, config):
         return cls()
 
-    def _fetch(self, pull_request):
-        return FetchResult(
+    def _fetch(self, request):
+        metadata = {
+            "row_count": "3",
+            "preset_id": "transaction_benchmark",
+            "source_route": "/v1/presets/transaction_benchmark/generate",
+        }
+        if isinstance(request, MultiSliceFetchRequest):
+            return FetchResult(
+                outputs=tuple(
+                    FetchOutput(
+                        body=b'{"row_count": 3, "rows": []}',
+                        content_type="application/json",
+                        metadata=metadata,
+                        logical_date=requested_slice.logical_date,
+                    )
+                    for requested_slice in request.slices
+                )
+            )
+
+        logical_date = request.slice.logical_date if isinstance(request, SliceFetchRequest) else None
+        return FetchResult.single(
             body=b'{"row_count": 3, "rows": []}',
             content_type="application/json",
-            metadata={
-                "row_count": "3",
-                "preset_id": "transaction_benchmark",
-                "source_route": "/v1/presets/transaction_benchmark/generate",
-            },
+            metadata=metadata,
+            logical_date=logical_date,
         )
 
 
@@ -62,7 +85,7 @@ class LiveOnlyAdapter(SourceAdapter):
     def from_ingest_config(cls, config):
         return cls()
 
-    def _fetch(self, pull_request):
+    def _fetch(self, request):
         raise AssertionError("fetch should not be called when backfill is unsupported")
 
 
@@ -132,7 +155,7 @@ class SourceIngestTests(unittest.TestCase):
         config.validate()
         return config
 
-    def test_live_hit_uses_truncated_logical_date(self):
+    def test_live_hit_builds_live_request_and_storage_target(self):
         from common.slices import SliceWindowConfig
 
         config = self.build_config(
@@ -146,16 +169,43 @@ class SourceIngestTests(unittest.TestCase):
             )
         )
 
-        slices = build_logical_slices(
-            config, now=datetime(2026, 3, 12, 10, 49, tzinfo=UTC)
-        )
+        plan = build_fetch_plan(config, now=datetime(2026, 3, 12, 10, 49, tzinfo=UTC))
 
-        self.assertEqual(len(slices), 1)
+        self.assertIsInstance(plan.request, LiveFetchRequest)
+        self.assertEqual(len(plan.storage_targets), 1)
         self.assertEqual(
-            slices[0].logical_date, datetime(2026, 3, 12, 10, 0, tzinfo=UTC)
+            plan.storage_targets[0].logical_slice.logical_date,
+            datetime(2026, 3, 12, 10, 0, tzinfo=UTC),
         )
 
-    def test_backfill_days_expands_date_range(self):
+    def test_logical_date_builds_slice_request_and_storage_target(self):
+        from common.slices import SliceWindowConfig
+
+        config = self.build_config(
+            slice_window=SliceWindowConfig(
+                partition_granularity="day",
+                mode="live_hit",
+                logical_date="2026-03-12",
+                start_at=None,
+                end_at=None,
+                backfill_days=None,
+            )
+        )
+
+        plan = build_fetch_plan(config)
+
+        self.assertIsInstance(plan.request, SliceFetchRequest)
+        self.assertEqual(len(plan.storage_targets), 1)
+        self.assertEqual(
+            plan.request.slice.logical_date.isoformat(),
+            "2026-03-12T00:00:00+00:00",
+        )
+        self.assertEqual(
+            plan.storage_targets[0].logical_slice.logical_date.isoformat(),
+            "2026-03-12T00:00:00+00:00",
+        )
+
+    def test_backfill_builds_multi_slice_request_and_storage_targets(self):
         from common.slices import SliceWindowConfig
 
         config = self.build_config(
@@ -169,12 +219,12 @@ class SourceIngestTests(unittest.TestCase):
             )
         )
 
-        slices = build_logical_slices(
-            config, now=datetime(2026, 3, 12, 9, 30, tzinfo=UTC)
-        )
+        plan = build_fetch_plan(config, now=datetime(2026, 3, 12, 9, 30, tzinfo=UTC))
 
+        self.assertIsInstance(plan.request, MultiSliceFetchRequest)
+        self.assertEqual(len(plan.storage_targets), 3)
         self.assertEqual(
-            [item.logical_date.isoformat() for item in slices],
+            [requested_slice.logical_date.isoformat() for requested_slice in plan.request.slices],
             [
                 "2026-03-10T00:00:00+00:00",
                 "2026-03-11T00:00:00+00:00",
@@ -182,86 +232,36 @@ class SourceIngestTests(unittest.TestCase):
             ],
         )
 
-    def test_live_hit_builds_live_pull_request(self):
-        from common.slices import SliceWindowConfig
-
-        config = self.build_config(
-            slice_window=SliceWindowConfig(
-                partition_granularity="hour",
-                mode="live_hit",
-                logical_date=None,
-                start_at=None,
-                end_at=None,
-                backfill_days=None,
-            )
-        )
-
-        pull_requests = build_pull_requests(
-            config,
-            now=datetime(2026, 3, 12, 10, 49, tzinfo=UTC),
-        )
-
-        self.assertEqual(len(pull_requests), 1)
-        self.assertIsInstance(pull_requests[0], LivePullRequest)
-        self.assertEqual(pull_requests[0].mode, "live_hit")
-        self.assertEqual(
-            pull_requests[0].logical_slice.logical_date,
-            datetime(2026, 3, 12, 10, 0, tzinfo=UTC),
-        )
-
-    def test_backfill_builds_historical_pull_requests(self):
-        from common.slices import SliceWindowConfig
-
-        config = self.build_config(
-            slice_window=SliceWindowConfig(
-                partition_granularity="day",
-                mode="backfill",
-                logical_date=None,
-                start_at=None,
-                end_at=None,
-                backfill_days=2,
-            )
-        )
-
-        pull_requests = build_pull_requests(
-            config,
-            now=datetime(2026, 3, 12, 9, 30, tzinfo=UTC),
-        )
-
-        self.assertEqual(len(pull_requests), 2)
-        self.assertIsInstance(pull_requests[0], HistoricalSlicePullRequest)
-        self.assertEqual(pull_requests[0].mode, "backfill")
-        self.assertEqual(
-            pull_requests[0].slice_start.isoformat(),
-            "2026-03-11T00:00:00+00:00",
-        )
-        self.assertEqual(
-            pull_requests[0].slice_end.isoformat(),
-            "2026-03-12T00:00:00+00:00",
-        )
-
     def test_seed_derivation_is_deterministic(self):
-        logical_slice = build_logical_slices(
-            self.build_config(),
-            now=datetime(2026, 3, 12, 9, 30, tzinfo=UTC),
-        )[0]
+        logical_date = datetime(2026, 3, 12, 0, 0, tzinfo=UTC)
 
         first = derive_seed(
             workflow_name="polling-generated-events",
             preset_id="transaction_benchmark",
-            logical_slice=logical_slice,
+            logical_date=logical_date,
             strategy="derived",
             fixed_seed=None,
         )
         second = derive_seed(
             workflow_name="polling-generated-events",
             preset_id="transaction_benchmark",
-            logical_slice=logical_slice,
+            logical_date=logical_date,
             strategy="derived",
             fixed_seed=None,
         )
 
         self.assertEqual(first, second)
+
+    def test_live_seed_derivation_omits_seed_for_derived_strategy(self):
+        seed = derive_seed(
+            workflow_name="polling-generated-events",
+            preset_id="transaction_benchmark",
+            logical_date=None,
+            strategy="derived",
+            fixed_seed=None,
+        )
+
+        self.assertIsNone(seed)
 
     def test_build_generate_payload_applies_defaults(self):
         payload = build_generate_payload(
@@ -304,6 +304,53 @@ class SourceIngestTests(unittest.TestCase):
             "https://example.execute-api.us-east-2.amazonaws.com/dev",
         )
 
+    def test_map_fetch_outputs_matches_multi_slice_results_to_storage_targets(self):
+        from common.slices import SliceWindowConfig
+
+        config = self.build_config(
+            slice_window=SliceWindowConfig(
+                partition_granularity="day",
+                mode="backfill",
+                logical_date=None,
+                start_at=None,
+                end_at=None,
+                backfill_days=3,
+            )
+        )
+        storage_targets = build_storage_targets(
+            config,
+            now=datetime(2026, 3, 12, 9, 30, tzinfo=UTC),
+        )
+        requested_slices = tuple(
+            RequestedSlice(
+                logical_date=target.logical_slice.logical_date,
+                slice_start=target.logical_slice.logical_date,
+                slice_end=target.logical_slice.logical_date,
+            )
+            for target in storage_targets
+        )
+        plan = FetchPlan(
+            request=MultiSliceFetchRequest(slices=requested_slices),
+            storage_targets=storage_targets,
+        )
+        fetched = FetchResult(
+            outputs=tuple(
+                FetchOutput(
+                    body=b"{}",
+                    content_type="application/json",
+                    logical_date=target.logical_slice.logical_date,
+                )
+                for target in reversed(storage_targets)
+            )
+        )
+
+        assignments = map_fetch_outputs(plan, fetched)
+
+        self.assertEqual(
+            [target.logical_slice.logical_date for target, _ in assignments],
+            [target.logical_slice.logical_date for target in storage_targets],
+        )
+
     def test_build_landing_key_uses_content_type_suffix(self):
         from common.slices import SliceWindowConfig
 
@@ -317,7 +364,7 @@ class SourceIngestTests(unittest.TestCase):
                 backfill_days=None,
             )
         )
-        logical_slice = build_logical_slices(config)[0]
+        logical_slice = build_storage_targets(config)[0].logical_slice
 
         key = build_landing_key(config, logical_slice, "application/json")
 
@@ -342,7 +389,7 @@ class SourceIngestTests(unittest.TestCase):
 
         key = build_landing_key(
             config,
-            build_logical_slices(config)[0],
+            build_storage_targets(config)[0].logical_slice,
             "application/octet-stream",
         )
 
@@ -364,7 +411,7 @@ class SourceIngestTests(unittest.TestCase):
 
         key = build_landing_key(
             config,
-            build_logical_slices(config)[0],
+            build_storage_targets(config)[0].logical_slice,
             "application/vnd.acme.dataset+json",
         )
 
@@ -404,7 +451,31 @@ class SourceIngestTests(unittest.TestCase):
         )
         self.assertEqual(put_call["Metadata"]["row_count"], "3")
 
-    def test_run_source_ingest_rejects_unsupported_pull_request_type(self):
+    def test_run_source_ingest_writes_multiple_objects_for_multi_slice_request(self):
+        from common.slices import SliceWindowConfig
+
+        config = self.build_config(
+            slice_window=SliceWindowConfig(
+                partition_granularity="day",
+                mode="backfill",
+                logical_date=None,
+                start_at=None,
+                end_at=None,
+                backfill_days=2,
+            ),
+        )
+        s3_client = FakeS3Client()
+
+        with (
+            patch("source_ingest.runtime.build_adapter", return_value=FakeAdapter()),
+            patch("builtins.print"),
+        ):
+            results = run_source_ingest(config=config, s3_client=s3_client)
+
+        self.assertEqual(len(results), 2)
+        self.assertEqual(len(s3_client.calls), 2)
+
+    def test_run_source_ingest_rejects_unsupported_request_type(self):
         from common.slices import SliceWindowConfig
 
         config = self.build_config(
@@ -424,7 +495,7 @@ class SourceIngestTests(unittest.TestCase):
         ):
             with self.assertRaisesRegex(
                 ValueError,
-                "does not support pull request type 'HistoricalSlicePullRequest'",
+                "does not support request type 'MultiSliceFetchRequest'",
             ):
                 run_source_ingest(config=config, s3_client=FakeS3Client())
 
