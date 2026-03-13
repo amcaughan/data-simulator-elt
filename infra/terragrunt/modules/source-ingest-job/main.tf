@@ -3,10 +3,19 @@ data "aws_ssm_parameter" "source_base_url" {
   name  = var.source_base_url_ssm_param_name
 }
 
+data "aws_caller_identity" "current" {}
+
 locals {
   project_slug   = replace(var.project_name, "_", "-")
   family_name    = "${local.project_slug}-${var.environment}-${var.workflow_name}-source-ingest"
   log_group_name = "/ecs/${local.family_name}"
+  source_base_url_value = try(data.aws_ssm_parameter.source_base_url[0].value, null)
+  execute_api_parts = (
+    var.source_adapter == "simulator_api" && local.source_base_url_value != null
+    ? regex("https://([^.]+)\\.execute-api\\.[^.]+\\.amazonaws\\.com/([^/]+)$", local.source_base_url_value)
+    : []
+  )
+  simulator_api_invoke_arn = length(local.execute_api_parts) == 2 ? "arn:aws:execute-api:${var.aws_region}:${data.aws_caller_identity.current.account_id}:${local.execute_api_parts[0]}/${local.execute_api_parts[1]}/POST/v1/presets/*/generate" : null
   environment = concat(
     [
       {
@@ -120,6 +129,19 @@ data "aws_iam_policy_document" "task_policy" {
       actions = ["ssm:GetParameter"]
 
       resources = [data.aws_ssm_parameter.source_base_url[0].arn]
+    }
+  }
+
+  dynamic "statement" {
+    for_each = local.simulator_api_invoke_arn == null ? [] : [1]
+
+    content {
+      sid    = "InvokeSimulatorApi"
+      effect = "Allow"
+
+      actions = ["execute-api:Invoke"]
+
+      resources = [local.simulator_api_invoke_arn]
     }
   }
 }

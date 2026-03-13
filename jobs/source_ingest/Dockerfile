@@ -5,9 +5,10 @@ ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-COPY jobs/requirements.txt /tmp/requirements.txt
+COPY requirements.txt /tmp/requirements.txt
 RUN python -m pip install --no-cache-dir -r /tmp/requirements.txt
 
-COPY jobs/source_ingest /app/source_ingest
+COPY common /app/common
+COPY source_ingest /app/source_ingest
 
 ENTRYPOINT ["python", "-m", "source_ingest"]
