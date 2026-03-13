@@ -66,7 +66,22 @@ variable "source_adapter_config_json" {
   type = string
 }
 
-variable "partition_granularity" {
+variable "landing_base_prefix" {
+  type    = string
+  default = null
+}
+
+variable "landing_partition_fields_json" {
+  type    = string
+  default = null
+}
+
+variable "landing_path_suffix_json" {
+  type    = string
+  default = null
+}
+
+variable "slice_granularity" {
   type    = string
   default = "day"
 }
@@ -91,7 +106,7 @@ variable "source_ingest_end_at" {
   default = null
 }
 
-variable "source_ingest_backfill_days" {
+variable "source_ingest_backfill_count" {
   type    = number
   default = null
 }
@@ -124,12 +139,12 @@ variable "standardize_end_at" {
   default = null
 }
 
-variable "standardize_backfill_days" {
+variable "standardize_backfill_count" {
   type    = number
   default = null
 }
 
-variable "standardize_output_partition_granularity" {
+variable "standardize_output_slice_granularity" {
   type    = string
   default = "day"
 }

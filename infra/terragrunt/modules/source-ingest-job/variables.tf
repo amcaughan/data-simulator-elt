@@ -20,6 +20,21 @@ variable "landing_bucket_name" {
   type = string
 }
 
+variable "landing_base_prefix" {
+  type    = string
+  default = null
+}
+
+variable "landing_partition_fields_json" {
+  type    = string
+  default = null
+}
+
+variable "landing_path_suffix_json" {
+  type    = string
+  default = null
+}
+
 variable "source_base_url_ssm_param_name" {
   type = string
   default = null
@@ -30,7 +45,7 @@ variable "source_adapter" {
   default = "simulator_api"
 }
 
-variable "partition_granularity" {
+variable "slice_granularity" {
   type    = string
   default = "day"
 }
@@ -55,7 +70,7 @@ variable "end_at" {
   default = null
 }
 
-variable "backfill_days" {
+variable "backfill_count" {
   type    = number
   default = null
 }

@@ -18,16 +18,19 @@ module "source_ingest" {
   project_name                   = var.project_name
   workflow_name                  = var.workflow_name
   landing_bucket_name            = module.storage.landing_bucket_name
+  landing_base_prefix            = var.landing_base_prefix
+  landing_partition_fields_json  = var.landing_partition_fields_json
+  landing_path_suffix_json       = var.landing_path_suffix_json
   source_base_url_ssm_param_name = var.source_base_url_ssm_param_name
   source_adapter                 = var.source_adapter
   source_adapter_config_json     = var.source_adapter_config_json
   aws_region                     = var.aws_region
-  partition_granularity          = var.partition_granularity
+  slice_granularity              = var.slice_granularity
   mode                           = var.source_ingest_mode
   logical_date                   = var.source_ingest_logical_date
   start_at                       = var.source_ingest_start_at
   end_at                         = var.source_ingest_end_at
-  backfill_days                  = var.source_ingest_backfill_days
+  backfill_count                 = var.source_ingest_backfill_count
   container_image                = var.source_ingest_container_image
 }
 
@@ -39,17 +42,20 @@ module "standardize" {
   workflow_name                  = var.workflow_name
   landing_bucket_name            = module.storage.landing_bucket_name
   processed_bucket_name          = module.storage.processed_bucket_name
+  landing_base_prefix            = var.landing_base_prefix
+  landing_partition_fields_json  = var.landing_partition_fields_json
+  landing_path_suffix_json       = var.landing_path_suffix_json
   source_adapter                 = var.source_adapter
   source_adapter_config_json     = var.source_adapter_config_json
   aws_region                     = var.aws_region
-  landing_partition_granularity  = var.partition_granularity
-  output_partition_granularity   = var.standardize_output_partition_granularity
+  landing_slice_granularity      = var.slice_granularity
+  output_slice_granularity       = var.standardize_output_slice_granularity
   processed_output_prefix        = var.standardize_processed_output_prefix
   mode                           = var.standardize_mode
   logical_date                   = var.standardize_logical_date
   start_at                       = var.standardize_start_at
   end_at                         = var.standardize_end_at
-  backfill_days                  = var.standardize_backfill_days
+  backfill_count                 = var.standardize_backfill_count
   container_image                = var.standardize_container_image
 }
 

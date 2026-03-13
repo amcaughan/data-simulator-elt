@@ -20,9 +20,12 @@ Options:
   --logical-date ISO           Logical date for a one-off live hit.
   --start-at ISO               Backfill range start.
   --end-at ISO                 Backfill range end.
-  --backfill-days N            Backfill the previous N logical slices.
+  --backfill-count N           Backfill the previous N logical slices.
   --adapter-config-json JSON   Override SOURCE_ADAPTER_CONFIG_JSON for the run.
   --adapter-config-file PATH   Read adapter config override from a file.
+  --landing-base-prefix PATH   Override LANDING_BASE_PREFIX for the run.
+  --landing-partitions JSON    Override LANDING_PARTITION_FIELDS_JSON for the run.
+  --landing-path-suffix JSON   Override LANDING_PATH_SUFFIX_JSON for the run.
   --landing-input-prefix PATH  Override LANDING_INPUT_PREFIX for standardize.
   --processed-output-prefix P  Override PROCESSED_OUTPUT_PREFIX for standardize.
   --wait                       Wait for the final task to stop before exiting.
@@ -35,7 +38,7 @@ Examples:
   ./scripts/run-scheduled-workflow.sh \
     --workflow polling-generated-events \
     --mode backfill \
-    --backfill-days 7
+    --backfill-count 7
 
   ./scripts/run-scheduled-workflow.sh \
     --workflow batch-file-delivery \
@@ -54,9 +57,12 @@ MODE=""
 LOGICAL_DATE=""
 START_AT=""
 END_AT=""
-BACKFILL_DAYS=""
+BACKFILL_COUNT=""
 ADAPTER_CONFIG_JSON=""
 ADAPTER_CONFIG_FILE=""
+LANDING_BASE_PREFIX=""
+LANDING_PARTITIONS_JSON=""
+LANDING_PATH_SUFFIX_JSON=""
 LANDING_INPUT_PREFIX=""
 PROCESSED_OUTPUT_PREFIX=""
 WAIT_FOR_FINAL="false"
@@ -91,8 +97,8 @@ while [[ $# -gt 0 ]]; do
       END_AT="${2:-}"
       shift 2
       ;;
-    --backfill-days)
-      BACKFILL_DAYS="${2:-}"
+    --backfill-count)
+      BACKFILL_COUNT="${2:-}"
       shift 2
       ;;
     --adapter-config-json)
@@ -101,6 +107,18 @@ while [[ $# -gt 0 ]]; do
       ;;
     --adapter-config-file)
       ADAPTER_CONFIG_FILE="${2:-}"
+      shift 2
+      ;;
+    --landing-base-prefix)
+      LANDING_BASE_PREFIX="${2:-}"
+      shift 2
+      ;;
+    --landing-partitions)
+      LANDING_PARTITIONS_JSON="${2:-}"
+      shift 2
+      ;;
+    --landing-path-suffix)
+      LANDING_PATH_SUFFIX_JSON="${2:-}"
       shift 2
       ;;
     --landing-input-prefix)
@@ -151,7 +169,7 @@ if [[ -n "$ADAPTER_CONFIG_FILE" ]]; then
 fi
 
 if [[ -z "$MODE" ]]; then
-  if [[ -n "$START_AT" || -n "$END_AT" || -n "$BACKFILL_DAYS" ]]; then
+  if [[ -n "$START_AT" || -n "$END_AT" || -n "$BACKFILL_COUNT" ]]; then
     MODE="backfill"
   else
     MODE="live_hit"
@@ -202,8 +220,11 @@ run_step() {
     LOGICAL_DATE="$LOGICAL_DATE" \
     START_AT="$START_AT" \
     END_AT="$END_AT" \
-    BACKFILL_DAYS="$BACKFILL_DAYS" \
+    BACKFILL_COUNT="$BACKFILL_COUNT" \
     ADAPTER_CONFIG_JSON="$ADAPTER_CONFIG_JSON" \
+    LANDING_BASE_PREFIX="$LANDING_BASE_PREFIX" \
+    LANDING_PARTITIONS_JSON="$LANDING_PARTITIONS_JSON" \
+    LANDING_PATH_SUFFIX_JSON="$LANDING_PATH_SUFFIX_JSON" \
     LANDING_INPUT_PREFIX="$LANDING_INPUT_PREFIX" \
     PROCESSED_OUTPUT_PREFIX="$PROCESSED_OUTPUT_PREFIX" \
     WORKFLOW_NAME="$WORKFLOW_NAME" \
@@ -232,7 +253,7 @@ container_name = os.environ["CONTAINER_NAME"]
 
 env = [{"name": "MODE", "value": os.environ["MODE"]}]
 
-for key in ("LOGICAL_DATE", "START_AT", "END_AT", "BACKFILL_DAYS"):
+for key in ("LOGICAL_DATE", "START_AT", "END_AT", "BACKFILL_COUNT"):
     value = os.environ.get(key)
     if value:
         env.append({"name": key, "value": value})
@@ -245,6 +266,18 @@ if adapter_config_json:
             "value": adapter_config_json,
         }
     )
+
+for env_name in (
+    "LANDING_BASE_PREFIX",
+    "LANDING_PARTITION_FIELDS_JSON",
+    "LANDING_PATH_SUFFIX_JSON",
+):
+    if env_name == "LANDING_PARTITION_FIELDS_JSON":
+        value = os.environ.get("LANDING_PARTITIONS_JSON")
+    else:
+        value = os.environ.get(env_name)
+    if value:
+        env.append({"name": env_name, "value": value})
 
 if step_name == "standardize":
     landing_input_prefix = os.environ.get("LANDING_INPUT_PREFIX")

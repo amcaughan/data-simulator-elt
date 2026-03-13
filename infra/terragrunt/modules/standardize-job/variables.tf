@@ -24,6 +24,21 @@ variable "processed_bucket_name" {
   type = string
 }
 
+variable "landing_base_prefix" {
+  type    = string
+  default = null
+}
+
+variable "landing_partition_fields_json" {
+  type    = string
+  default = null
+}
+
+variable "landing_path_suffix_json" {
+  type    = string
+  default = null
+}
+
 variable "source_adapter" {
   type = string
 }
@@ -32,12 +47,12 @@ variable "source_adapter_config_json" {
   type = string
 }
 
-variable "landing_partition_granularity" {
+variable "landing_slice_granularity" {
   type    = string
   default = "day"
 }
 
-variable "output_partition_granularity" {
+variable "output_slice_granularity" {
   type    = string
   default = "day"
 }
@@ -72,7 +87,7 @@ variable "end_at" {
   default = null
 }
 
-variable "backfill_days" {
+variable "backfill_count" {
   type    = number
   default = null
 }

@@ -27,8 +27,8 @@ locals {
         value = var.source_adapter
       },
       {
-        name  = "PARTITION_GRANULARITY"
-        value = var.partition_granularity
+        name  = "SLICE_GRANULARITY"
+        value = var.slice_granularity
       },
       {
         name  = "MODE"
@@ -46,6 +46,24 @@ locals {
         name  = "SOURCE_ADAPTER_CONFIG_JSON"
         value = var.source_adapter_config_json
       },
+    ],
+    var.landing_base_prefix == null ? [] : [
+      {
+        name  = "LANDING_BASE_PREFIX"
+        value = var.landing_base_prefix
+      }
+    ],
+    var.landing_partition_fields_json == null ? [] : [
+      {
+        name  = "LANDING_PARTITION_FIELDS_JSON"
+        value = var.landing_partition_fields_json
+      }
+    ],
+    var.landing_path_suffix_json == null ? [] : [
+      {
+        name  = "LANDING_PATH_SUFFIX_JSON"
+        value = var.landing_path_suffix_json
+      }
     ],
     var.logical_date == null ? [] : [
       {
@@ -65,10 +83,10 @@ locals {
         value = var.end_at
       }
     ],
-    var.backfill_days == null ? [] : [
+    var.backfill_count == null ? [] : [
       {
-        name  = "BACKFILL_DAYS"
-        value = tostring(var.backfill_days)
+        name  = "BACKFILL_COUNT"
+        value = tostring(var.backfill_count)
       }
     ],
   )
