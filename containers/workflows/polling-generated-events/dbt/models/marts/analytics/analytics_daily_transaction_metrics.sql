@@ -1,7 +1,6 @@
 {{ config(partitioned_by=["event_date"]) }}
 
 select
-  event_date,
   channel,
   card_region,
   merchant_category,
@@ -10,5 +9,6 @@ select
   average_amount,
   declined_transaction_count,
   declined_amount,
-  decline_rate
+  decline_rate,
+  event_date
 from {{ ref('gold_daily_transaction_metrics') }}

@@ -1,7 +1,6 @@
 {{ config(partitioned_by=["event_date"]) }}
 
 select
-  t.event_date,
   t.channel,
   t.card_region,
   t.merchant_category,
@@ -13,7 +12,8 @@ select
   coalesce(a.anomaly_transaction_count, 0) as anomaly_transaction_count,
   coalesce(a.anomalous_amount, 0.0) as anomalous_amount,
   coalesce(a.anomaly_rate, 0.0) as anomaly_rate,
-  a.average_anomalous_amount
+  a.average_anomalous_amount,
+  t.event_date as event_date
 from {{ ref('gold_daily_transaction_metrics') }} as t
 left join {{ ref('gold_daily_anomaly_metrics') }} as a
   on t.event_date = a.event_date

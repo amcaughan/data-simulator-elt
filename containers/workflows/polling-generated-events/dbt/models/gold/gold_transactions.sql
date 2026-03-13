@@ -4,7 +4,6 @@ select
   transaction_id,
   source_row_index,
   event_ts,
-  event_date,
   event_hour,
   card_id,
   card_region,
@@ -32,5 +31,6 @@ select
   schema_version,
   scenario_name,
   response_row_count,
-  landing_key
+  landing_key,
+  event_date
 from {{ ref('silver_transactions') }}

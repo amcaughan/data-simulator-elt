@@ -3,7 +3,6 @@
 select
   transaction_id,
   event_ts,
-  event_date,
   event_hour,
   card_id,
   card_region,
@@ -16,5 +15,6 @@ select
   amount_band,
   channel,
   is_declined,
-  is_high_risk_merchant
+  is_high_risk_merchant,
+  event_date
 from {{ ref('gold_transactions') }}

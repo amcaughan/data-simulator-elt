@@ -4,7 +4,6 @@ select
   concat(_landing_key, ':', cast(__row_index as varchar)) as transaction_id,
   cast(__row_index as bigint) as source_row_index,
   cast(from_iso8601_timestamp(_logical_date) as timestamp) as event_ts,
-  cast(date(from_iso8601_timestamp(_logical_date)) as date) as event_date,
   cast(date_trunc('hour', from_iso8601_timestamp(_logical_date)) as timestamp) as event_hour,
   cast(card_id as varchar) as card_id,
   cast(card_region as varchar) as card_region,
@@ -22,5 +21,6 @@ select
   try(cast(from_iso8601_timestamp(_ingested_at) as timestamp)) as ingested_ts,
   cast(_schema_version as varchar) as schema_version,
   cast(_scenario_name as varchar) as scenario_name,
-  cast(_response_row_count as bigint) as response_row_count
+  cast(_response_row_count as bigint) as response_row_count,
+  cast(date(from_iso8601_timestamp(_logical_date)) as date) as event_date
 from {{ source('bronze', 'bronze_polling_generated_events') }}
