@@ -9,7 +9,14 @@ import urllib.parse
 import urllib.request
 
 from common.slices import LogicalSlice
-from source_ingest.adapters.base import AdapterCapabilities, FetchResult, SourceAdapter
+from source_ingest.adapters.base import (
+    AdapterCapabilities,
+    FetchResult,
+    HistoricalSlicePullRequest,
+    LivePullRequest,
+    SourceAdapter,
+    SourcePullRequest,
+)
 from source_ingest.config import IngestConfig
 
 
@@ -131,23 +138,13 @@ class SimulatorApiAdapter(SourceAdapter):
         self.source_base_url = source_base_url
         self.adapter_config = adapter_config
 
-    def fetch(self, logical_slice: LogicalSlice) -> FetchResult:
+    def fetch(self, pull_request: SourcePullRequest) -> FetchResult:
         route = f"/v1/presets/{self.adapter_config.preset_id}/generate"
         url = urllib.parse.urljoin(
             self.source_base_url.rstrip("/") + "/",
             route.lstrip("/"),
         )
-        payload = build_generate_payload(
-            request_overrides=self.adapter_config.request_overrides,
-            row_count=self.adapter_config.row_count,
-            seed=derive_seed(
-                workflow_name=self.workflow_name,
-                preset_id=self.adapter_config.preset_id,
-                logical_slice=logical_slice,
-                strategy=self.adapter_config.seed_strategy,
-                fixed_seed=self.adapter_config.fixed_seed,
-            ),
-        )
+        payload = self._build_payload(pull_request)
         response_bytes, content_type = self._signed_post(url, payload)
         parsed = json.loads(response_bytes.decode("utf-8"))
         row_count = parsed.get("row_count")
@@ -157,6 +154,38 @@ class SimulatorApiAdapter(SourceAdapter):
             row_count=row_count if isinstance(row_count, int) else None,
             route=route,
             source_metadata={"preset_id": self.adapter_config.preset_id},
+        )
+
+    def _build_payload(self, pull_request: SourcePullRequest) -> dict[str, Any]:
+        if isinstance(pull_request, LivePullRequest):
+            return self._build_live_payload(pull_request)
+        if isinstance(pull_request, HistoricalSlicePullRequest):
+            return self._build_historical_payload(pull_request)
+        raise TypeError(f"Unsupported pull request type: {type(pull_request)!r}")
+
+    def _build_live_payload(self, pull_request: LivePullRequest) -> dict[str, Any]:
+        return self._build_generate_payload_for_slice(pull_request.logical_slice)
+
+    def _build_historical_payload(
+        self,
+        pull_request: HistoricalSlicePullRequest,
+    ) -> dict[str, Any]:
+        return self._build_generate_payload_for_slice(pull_request.logical_slice)
+
+    def _build_generate_payload_for_slice(
+        self,
+        logical_slice: LogicalSlice,
+    ) -> dict[str, Any]:
+        return build_generate_payload(
+            request_overrides=self.adapter_config.request_overrides,
+            row_count=self.adapter_config.row_count,
+            seed=derive_seed(
+                workflow_name=self.workflow_name,
+                preset_id=self.adapter_config.preset_id,
+                logical_slice=logical_slice,
+                strategy=self.adapter_config.seed_strategy,
+                fixed_seed=self.adapter_config.fixed_seed,
+            ),
         )
 
     def _signed_post(self, url: str, payload: dict[str, Any]) -> tuple[bytes, str]:
