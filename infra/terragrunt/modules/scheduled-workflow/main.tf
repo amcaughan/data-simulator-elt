@@ -1,6 +1,11 @@
 locals {
   project_slug      = replace(var.project_name, "_", "-")
-  dbt_repo_name     = "${local.project_slug}-${var.environment}-${var.workflow_name}-dbt"
+  workflow_token    = "${substr(replace(var.workflow_name, "-", ""), 0, 3)}${substr(md5(var.workflow_name), 0, 5)}"
+  dbt_repo_name     = "${local.project_slug}-${var.environment}-${local.workflow_token}-dbt"
+  scheduler_name    = "${local.project_slug}-${var.environment}-${local.workflow_token}-sch"
+  source_schedule_name = "${local.project_slug}-${var.environment}-${local.workflow_token}-si"
+  standardize_schedule_name = "${local.project_slug}-${var.environment}-${local.workflow_token}-std"
+  dbt_schedule_name = "${local.project_slug}-${var.environment}-${local.workflow_token}-dbt"
 }
 
 module "storage" {
@@ -146,7 +151,7 @@ data "aws_iam_policy_document" "scheduler_assume_role" {
 }
 
 resource "aws_iam_role" "scheduler" {
-  name               = "${local.project_slug}-${var.environment}-${var.workflow_name}-scheduler"
+  name               = local.scheduler_name
   assume_role_policy = data.aws_iam_policy_document.scheduler_assume_role.json
 }
 
@@ -188,13 +193,13 @@ data "aws_iam_policy_document" "scheduler" {
 }
 
 resource "aws_iam_role_policy" "scheduler" {
-  name   = "${local.project_slug}-${var.environment}-${var.workflow_name}-scheduler"
+  name   = local.scheduler_name
   role   = aws_iam_role.scheduler.id
   policy = data.aws_iam_policy_document.scheduler.json
 }
 
 resource "aws_scheduler_schedule" "source_ingest" {
-  name                = "${local.project_slug}-${var.environment}-${var.workflow_name}-source-ingest"
+  name                = local.source_schedule_name
   schedule_expression = var.ingest_schedule_expression
   state               = "ENABLED"
 
@@ -222,7 +227,7 @@ resource "aws_scheduler_schedule" "source_ingest" {
 }
 
 resource "aws_scheduler_schedule" "standardize" {
-  name                = "${local.project_slug}-${var.environment}-${var.workflow_name}-standardize"
+  name                = local.standardize_schedule_name
   schedule_expression = var.standardize_schedule_expression
   state               = "ENABLED"
 
@@ -252,7 +257,7 @@ resource "aws_scheduler_schedule" "standardize" {
 resource "aws_scheduler_schedule" "dbt" {
   count = var.dbt_schedule_expression == null ? 0 : 1
 
-  name                = "${local.project_slug}-${var.environment}-${var.workflow_name}-dbt"
+  name                = local.dbt_schedule_name
   schedule_expression = var.dbt_schedule_expression
   state               = "ENABLED"
 

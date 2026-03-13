@@ -3,10 +3,11 @@ data "aws_region" "current" {}
 
 locals {
   project_slug = replace(var.project_name, "_", "-")
+  workflow_token = "${substr(replace(var.workflow_name, "-", ""), 0, 3)}${substr(md5(var.workflow_name), 0, 5)}"
   bucket_names = {
-    landing   = "${local.project_slug}-${var.environment}-${var.workflow_name}-landing-${data.aws_caller_identity.current.account_id}-${data.aws_region.current.name}"
-    processed = "${local.project_slug}-${var.environment}-${var.workflow_name}-processed-${data.aws_caller_identity.current.account_id}-${data.aws_region.current.name}"
-    marts     = "${local.project_slug}-${var.environment}-${var.workflow_name}-marts-${data.aws_caller_identity.current.account_id}-${data.aws_region.current.name}"
+    landing   = "${local.project_slug}-${var.environment}-${local.workflow_token}-ldg-${data.aws_caller_identity.current.account_id}-${data.aws_region.current.region}"
+    processed = "${local.project_slug}-${var.environment}-${local.workflow_token}-prc-${data.aws_caller_identity.current.account_id}-${data.aws_region.current.region}"
+    marts     = "${local.project_slug}-${var.environment}-${local.workflow_token}-mrt-${data.aws_caller_identity.current.account_id}-${data.aws_region.current.region}"
   }
 }
 

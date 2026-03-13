@@ -16,7 +16,7 @@ data "aws_ssm_parameter" "network_shared_security_group_id" {
 locals {
   project_slug               = replace(var.project_name, "_", "-")
   marts_database_name        = replace("${var.project_name}_${var.environment}", "-", "_")
-  athena_results_bucket_name = "${local.project_slug}-${var.environment}-athena-results-${data.aws_caller_identity.current.account_id}-${data.aws_region.current.name}"
+  athena_results_bucket_name = "${local.project_slug}-${var.environment}-athena-results-${data.aws_caller_identity.current.account_id}-${data.aws_region.current.region}"
   ecr_repositories = {
     source_ingest  = "${local.project_slug}-${var.environment}-source-ingest"
     standardize    = "${local.project_slug}-${var.environment}-standardize"
@@ -159,7 +159,7 @@ module "source_ingest_image" {
   count  = var.publish_runtime_images ? 1 : 0
   source = "../container-image"
 
-  aws_region        = data.aws_region.current.name
+  aws_region        = data.aws_region.current.region
   repository_url    = aws_ecr_repository.this["source_ingest"].repository_url
   runtime_source_dir = var.source_ingest_container_source_dir
   build_context_dir = var.shared_containers_build_context_dir
@@ -172,7 +172,7 @@ module "standardize_image" {
   count  = var.publish_runtime_images ? 1 : 0
   source = "../container-image"
 
-  aws_region        = data.aws_region.current.name
+  aws_region        = data.aws_region.current.region
   repository_url    = aws_ecr_repository.this["standardize"].repository_url
   runtime_source_dir = var.standardize_container_source_dir
   build_context_dir = var.shared_containers_build_context_dir

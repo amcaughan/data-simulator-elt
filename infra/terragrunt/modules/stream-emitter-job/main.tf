@@ -4,7 +4,8 @@ data "aws_ssm_parameter" "simulator_api_url" {
 
 locals {
   project_slug   = replace(var.project_name, "_", "-")
-  family_name    = "${local.project_slug}-${var.environment}-${var.workflow_name}-stream-emitter"
+  workflow_token = "${substr(replace(var.workflow_name, "-", ""), 0, 3)}${substr(md5(var.workflow_name), 0, 5)}"
+  family_name    = "${local.project_slug}-${var.environment}-${local.workflow_token}-sem"
   log_group_name = "/ecs/${local.family_name}"
 }
 
@@ -36,16 +37,27 @@ resource "aws_iam_role_policy_attachment" "execution" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
-data "aws_iam_policy_document" "task_policy" {
+data "aws_iam_policy_document" "execution_policy" {
   statement {
     sid    = "ReadApiUrlParameter"
     effect = "Allow"
 
-    actions = ["ssm:GetParameter"]
+    actions = [
+      "ssm:GetParameter",
+      "ssm:GetParameters",
+    ]
 
     resources = [data.aws_ssm_parameter.simulator_api_url.arn]
   }
+}
 
+resource "aws_iam_role_policy" "execution" {
+  name   = "${local.family_name}-execution"
+  role   = aws_iam_role.execution.id
+  policy = data.aws_iam_policy_document.execution_policy.json
+}
+
+data "aws_iam_policy_document" "task_policy" {
   statement {
     sid    = "PublishToStream"
     effect = "Allow"

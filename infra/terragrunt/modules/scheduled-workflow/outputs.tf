@@ -11,11 +11,13 @@ output "ecs_cluster_arn" {
 }
 
 output "network_private_subnet_ids" {
-  value = var.network_private_subnet_ids
+  value     = var.network_private_subnet_ids
+  sensitive = true
 }
 
 output "network_security_group_id" {
-  value = var.network_security_group_id
+  value     = var.network_security_group_id
+  sensitive = true
 }
 
 output "landing_bucket_name" {

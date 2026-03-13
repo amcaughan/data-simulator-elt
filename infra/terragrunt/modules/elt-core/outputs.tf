@@ -47,13 +47,16 @@ output "stream_emitter_ecr_repository_url" {
 }
 
 output "network_vpc_id" {
-  value = data.aws_ssm_parameter.network_vpc_id.value
+  value     = data.aws_ssm_parameter.network_vpc_id.value
+  sensitive = true
 }
 
 output "network_private_subnet_ids" {
-  value = split(",", data.aws_ssm_parameter.network_private_subnet_ids.value)
+  value     = split(",", data.aws_ssm_parameter.network_private_subnet_ids.value)
+  sensitive = true
 }
 
 output "network_security_group_id" {
-  value = data.aws_ssm_parameter.network_shared_security_group_id.value
+  value     = data.aws_ssm_parameter.network_shared_security_group_id.value
+  sensitive = true
 }

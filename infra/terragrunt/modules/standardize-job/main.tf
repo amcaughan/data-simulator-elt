@@ -1,6 +1,7 @@
 locals {
   project_slug   = replace(var.project_name, "_", "-")
-  family_name    = "${local.project_slug}-${var.environment}-${var.workflow_name}-standardize"
+  workflow_token = "${substr(replace(var.workflow_name, "-", ""), 0, 3)}${substr(md5(var.workflow_name), 0, 5)}"
+  family_name    = "${local.project_slug}-${var.environment}-${local.workflow_token}-std"
   log_group_name = "/ecs/${local.family_name}"
   environment = concat(
     [

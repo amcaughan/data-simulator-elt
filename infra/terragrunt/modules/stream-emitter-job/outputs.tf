@@ -1,5 +1,5 @@
 output "job_name" {
-  value = "${var.project_name}-${var.environment}-${var.workflow_name}-stream"
+  value = aws_ecs_task_definition.this.family
 }
 
 output "task_definition_arn" {
