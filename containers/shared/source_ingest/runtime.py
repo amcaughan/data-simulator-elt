@@ -101,8 +101,9 @@ def run_source_ingest(config: IngestConfig, s3_client) -> list[LandingObject]:
     writer = LandingWriter(config=config, s3_client=s3_client)
     results: list[LandingObject] = []
 
-    for logical_slice in config.iter_slices():
-        fetched = adapter.fetch(logical_slice)
+    for pull_request in config.iter_pull_requests():
+        logical_slice = pull_request.logical_slice
+        fetched = adapter.fetch(pull_request)
         landing_object = writer.write(
             logical_slice=logical_slice,
             body=fetched.body,

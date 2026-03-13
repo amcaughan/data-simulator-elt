@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import TYPE_CHECKING, ClassVar
 
 from common.slices import LogicalSlice
@@ -22,6 +23,29 @@ class FetchResult:
     row_count: int | None
     route: str | None = None
     source_metadata: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class LivePullRequest:
+    logical_slice: LogicalSlice
+
+    @property
+    def mode(self) -> str:
+        return "live_hit"
+
+
+@dataclass(frozen=True)
+class HistoricalSlicePullRequest:
+    logical_slice: LogicalSlice
+    slice_start: datetime
+    slice_end: datetime
+
+    @property
+    def mode(self) -> str:
+        return "backfill"
+
+
+SourcePullRequest = LivePullRequest | HistoricalSlicePullRequest
 
 
 class UnsupportedSourceModeError(ValueError):
@@ -50,5 +74,5 @@ class SourceAdapter(ABC):
             )
 
     @abstractmethod
-    def fetch(self, logical_slice: LogicalSlice) -> FetchResult:
+    def fetch(self, pull_request: SourcePullRequest) -> FetchResult:
         raise NotImplementedError

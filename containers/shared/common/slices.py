@@ -26,6 +26,14 @@ def truncate_datetime(value: datetime, granularity: str) -> datetime:
     return truncated
 
 
+def granularity_step(granularity: str) -> timedelta:
+    if granularity == "day":
+        return timedelta(days=1)
+    if granularity == "hour":
+        return timedelta(hours=1)
+    raise ValueError(f"Unsupported granularity: {granularity}")
+
+
 @dataclass(frozen=True)
 class LogicalSlice:
     logical_date: datetime
@@ -88,7 +96,7 @@ class SliceWindowConfig:
 
     def iter_slices(self, now: datetime | None = None) -> list[datetime]:
         current_time = now or datetime.now(UTC)
-        step = timedelta(days=1) if self.partition_granularity == "day" else timedelta(hours=1)
+        step = granularity_step(self.partition_granularity)
 
         if self.mode == "live_hit":
             logical_date = truncate_datetime(

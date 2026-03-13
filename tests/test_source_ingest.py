@@ -11,6 +11,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "containers" / "sha
 from source_ingest.adapters.base import (
     AdapterCapabilities,
     FetchResult,
+    HistoricalSlicePullRequest,
+    LivePullRequest,
     SourceAdapter,
 )
 from source_ingest.adapters.simulator_api import (
@@ -33,7 +35,7 @@ class FakeAdapter(SourceAdapter):
     def from_ingest_config(cls, config):
         return cls()
 
-    def fetch(self, logical_slice):
+    def fetch(self, pull_request):
         return FetchResult(
             body=b'{"row_count": 3, "rows": []}',
             content_type="application/json",
@@ -54,7 +56,7 @@ class NonBackfillAdapter(SourceAdapter):
     def from_ingest_config(cls, config):
         return cls()
 
-    def fetch(self, logical_slice):
+    def fetch(self, pull_request):
         raise AssertionError("fetch should not be called when backfill is unsupported")
 
 
@@ -169,6 +171,60 @@ class SourceIngestTests(unittest.TestCase):
                 "2026-03-11T00:00:00+00:00",
                 "2026-03-12T00:00:00+00:00",
             ],
+        )
+
+    def test_live_hit_builds_live_pull_request(self):
+        from common.slices import SliceWindowConfig
+
+        config = self.build_config(
+            slice_window=SliceWindowConfig(
+                partition_granularity="hour",
+                mode="live_hit",
+                logical_date=None,
+                start_at=None,
+                end_at=None,
+                backfill_days=None,
+            )
+        )
+
+        pull_requests = config.iter_pull_requests(
+            now=datetime(2026, 3, 12, 10, 49, tzinfo=UTC)
+        )
+
+        self.assertEqual(len(pull_requests), 1)
+        self.assertIsInstance(pull_requests[0], LivePullRequest)
+        self.assertEqual(
+            pull_requests[0].logical_slice.logical_date,
+            datetime(2026, 3, 12, 10, 0, tzinfo=UTC),
+        )
+
+    def test_backfill_builds_historical_pull_requests(self):
+        from common.slices import SliceWindowConfig
+
+        config = self.build_config(
+            slice_window=SliceWindowConfig(
+                partition_granularity="day",
+                mode="backfill",
+                logical_date=None,
+                start_at=None,
+                end_at=None,
+                backfill_days=2,
+            )
+        )
+
+        pull_requests = config.iter_pull_requests(
+            now=datetime(2026, 3, 12, 9, 30, tzinfo=UTC)
+        )
+
+        self.assertEqual(len(pull_requests), 2)
+        self.assertIsInstance(pull_requests[0], HistoricalSlicePullRequest)
+        self.assertEqual(
+            pull_requests[0].slice_start.isoformat(),
+            "2026-03-11T00:00:00+00:00",
+        )
+        self.assertEqual(
+            pull_requests[0].slice_end.isoformat(),
+            "2026-03-12T00:00:00+00:00",
         )
 
     def test_seed_derivation_is_deterministic(self):
