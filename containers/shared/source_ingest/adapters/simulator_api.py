@@ -9,7 +9,8 @@ import urllib.parse
 import urllib.request
 
 from common.slices import LogicalSlice
-from source_ingest.adapters.base import AdapterCapabilities, FetchResult
+from source_ingest.adapters.base import AdapterCapabilities, FetchResult, SourceAdapter
+from source_ingest.config import IngestConfig
 
 
 VALID_SEED_STRATEGIES = {"derived", "fixed", "none"}
@@ -96,8 +97,22 @@ class SimulatorApiConfig:
         )
 
 
-class SimulatorApiAdapter:
+class SimulatorApiAdapter(SourceAdapter):
     capabilities = AdapterCapabilities(supports_backfill=True)
+
+    @classmethod
+    def adapter_key(cls) -> str:
+        return "simulator_api"
+
+    @classmethod
+    def from_ingest_config(cls, config: IngestConfig) -> "SimulatorApiAdapter":
+        adapter_config = SimulatorApiConfig.from_dict(config.source_adapter_config)
+        return cls(
+            workflow_name=config.workflow_name,
+            aws_region=config.aws_region,
+            source_base_url=config.source_base_url,
+            adapter_config=adapter_config,
+        )
 
     def __init__(
         self,

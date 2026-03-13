@@ -97,11 +97,7 @@ class LandingWriter:
 
 def run_source_ingest(config: IngestConfig, s3_client) -> list[LandingObject]:
     adapter = build_adapter(config)
-    if config.mode == "backfill" and not adapter.capabilities.supports_backfill:
-        raise ValueError(
-            f"Source adapter '{config.source_adapter}' does not support backfill mode. "
-            "Use MODE=single_run or choose an adapter that can interpret logical date ranges."
-        )
+    adapter.ensure_supported(config.mode)
     writer = LandingWriter(config=config, s3_client=s3_client)
     results: list[LandingObject] = []
 
