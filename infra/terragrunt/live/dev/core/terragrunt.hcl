@@ -3,7 +3,7 @@ include "root" {
 }
 
 terraform {
-  source = "${get_repo_root()}/infra/terragrunt/modules/elt-core"
+  source = "${get_repo_root()}/infra/terragrunt//modules/elt-core"
 }
 
 inputs = {

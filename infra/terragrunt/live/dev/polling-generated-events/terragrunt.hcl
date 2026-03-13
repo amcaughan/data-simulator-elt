@@ -24,7 +24,7 @@ dependency "core" {
 }
 
 terraform {
-  source = "${get_repo_root()}/infra/terragrunt/modules/scheduled-workflow"
+  source = "${get_repo_root()}/infra/terragrunt//modules/scheduled-workflow"
 }
 
 inputs = {

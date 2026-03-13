@@ -21,7 +21,7 @@ dependency "core" {
 }
 
 terraform {
-  source = "${get_repo_root()}/infra/terragrunt/modules/streaming-workflow"
+  source = "${get_repo_root()}/infra/terragrunt//modules/streaming-workflow"
 }
 
 inputs = {
