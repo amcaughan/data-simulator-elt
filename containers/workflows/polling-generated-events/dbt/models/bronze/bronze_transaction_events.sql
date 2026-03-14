@@ -36,6 +36,7 @@ with typed as (
     cast(_response_row_count as bigint) as response_row_count,
     cast(date(from_iso8601_timestamp(_logical_date)) as date) as event_date
   from {{ source('raw', 'raw_polling_generated_events') }}
+  where regexp_like("$path", '.*\\.parquet$')
 ),
 deduped as (
   select

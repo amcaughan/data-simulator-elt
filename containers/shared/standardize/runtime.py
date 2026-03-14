@@ -106,7 +106,7 @@ def build_processed_manifest_key(
     return build_processed_key(
         config=config,
         logical_slice=logical_slice,
-        object_name=f"{object_name}.manifest.json",
+        object_name=f"_{object_name}.manifest.json",
     )
 
 
@@ -116,7 +116,7 @@ def build_manual_processed_manifest_key(
 ) -> str:
     return build_manual_processed_key(
         config=config,
-        object_name=f"{object_name}.manifest.json",
+        object_name=f"_{object_name}.manifest.json",
     )
 
 

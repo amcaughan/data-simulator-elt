@@ -291,7 +291,7 @@ class StandardizeTests(unittest.TestCase):
         self.assertEqual(results[0].key, "raw/manual/emergency.parquet")
         self.assertEqual(
             results[0].manifest_key,
-            "raw/manual/emergency.parquet.manifest.json",
+            "raw/manual/_emergency.parquet.manifest.json",
         )
         put_calls = [call for call in s3_client.calls if call["Bucket"] == "processed-bucket"]
         self.assertEqual(len(put_calls), 2)
