@@ -767,7 +767,7 @@ class SourceIngestTests(unittest.TestCase):
         )
         self.assertTrue(
             manifest_call["Key"].startswith(
-                "client=acme/emergency/adapter-suggested.json.manifest.json"
+                "client=acme/emergency/_adapter-suggested.json.manifest.json"
             )
         )
         self.assertEqual(payload_call["Metadata"]["planning_mode"], "manual")

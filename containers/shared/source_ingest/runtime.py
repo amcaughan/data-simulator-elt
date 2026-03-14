@@ -67,8 +67,8 @@ def resolve_manifest_object_name(
     suggested_object_name: str | None = None,
 ) -> str:
     if storage_target.object_name_override is not None or suggested_object_name is not None:
-        return f"{resolved_object_name}.manifest.json"
-    return f"{storage_target.object_stem}.manifest.json"
+        return f"_{resolved_object_name}.manifest.json"
+    return f"_{storage_target.object_stem}.manifest.json"
 
 
 def build_landing_key(

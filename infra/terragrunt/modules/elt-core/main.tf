@@ -94,13 +94,9 @@ resource "aws_athena_workgroup" "this" {
   name = "${local.project_slug}-${var.environment}"
   force_destroy = var.force_destroy_stateful_resources
 
-  configuration {
-    enforce_workgroup_configuration = true
-
-    result_configuration {
-      output_location = "s3://${aws_s3_bucket.athena_results.bucket}/query-results/"
-    }
-  }
+  # Leave query result staging to clients like dbt-athena via s3_staging_dir.
+  # If the workgroup forces its own output location, Athena will ignore the
+  # model-specific data locations we want under processed/ and marts/.
 }
 
 resource "aws_athena_database" "this" {
