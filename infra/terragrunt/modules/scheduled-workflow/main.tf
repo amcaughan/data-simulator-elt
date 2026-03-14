@@ -6,6 +6,10 @@ locals {
   source_schedule_name = "${local.project_slug}-${var.environment}-${local.workflow_token}-si"
   standardize_schedule_name = "${local.project_slug}-${var.environment}-${local.workflow_token}-std"
   dbt_schedule_name = "${local.project_slug}-${var.environment}-${local.workflow_token}-dbt"
+  source_schedule_enabled = var.ingest_schedule_expression != null
+  standardize_schedule_enabled = var.standardize_schedule_expression != null
+  dbt_schedule_enabled = var.dbt_schedule_expression != null
+  any_schedule_enabled = local.source_schedule_enabled || local.standardize_schedule_enabled || local.dbt_schedule_enabled
 }
 
 module "storage" {
@@ -141,6 +145,8 @@ module "dbt" {
 }
 
 data "aws_iam_policy_document" "scheduler_assume_role" {
+  count = local.any_schedule_enabled ? 1 : 0
+
   statement {
     effect = "Allow"
 
@@ -154,11 +160,15 @@ data "aws_iam_policy_document" "scheduler_assume_role" {
 }
 
 resource "aws_iam_role" "scheduler" {
+  count = local.any_schedule_enabled ? 1 : 0
+
   name               = local.scheduler_name
-  assume_role_policy = data.aws_iam_policy_document.scheduler_assume_role.json
+  assume_role_policy = data.aws_iam_policy_document.scheduler_assume_role[0].json
 }
 
 data "aws_iam_policy_document" "scheduler" {
+  count = local.any_schedule_enabled ? 1 : 0
+
   statement {
     sid    = "RunWorkflowTasks"
     effect = "Allow"
@@ -196,12 +206,16 @@ data "aws_iam_policy_document" "scheduler" {
 }
 
 resource "aws_iam_role_policy" "scheduler" {
+  count = local.any_schedule_enabled ? 1 : 0
+
   name   = local.scheduler_name
-  role   = aws_iam_role.scheduler.id
-  policy = data.aws_iam_policy_document.scheduler.json
+  role   = aws_iam_role.scheduler[0].id
+  policy = data.aws_iam_policy_document.scheduler[0].json
 }
 
 resource "aws_scheduler_schedule" "source_ingest" {
+  count = local.source_schedule_enabled ? 1 : 0
+
   name                = local.source_schedule_name
   schedule_expression = var.ingest_schedule_expression
   state               = "ENABLED"
@@ -212,7 +226,7 @@ resource "aws_scheduler_schedule" "source_ingest" {
 
   target {
     arn      = var.ecs_cluster_arn
-    role_arn = aws_iam_role.scheduler.arn
+    role_arn = aws_iam_role.scheduler[0].arn
 
     ecs_parameters {
       task_definition_arn = module.source_ingest.task_definition_arn
@@ -230,6 +244,8 @@ resource "aws_scheduler_schedule" "source_ingest" {
 }
 
 resource "aws_scheduler_schedule" "standardize" {
+  count = local.standardize_schedule_enabled ? 1 : 0
+
   name                = local.standardize_schedule_name
   schedule_expression = var.standardize_schedule_expression
   state               = "ENABLED"
@@ -240,7 +256,7 @@ resource "aws_scheduler_schedule" "standardize" {
 
   target {
     arn      = var.ecs_cluster_arn
-    role_arn = aws_iam_role.scheduler.arn
+    role_arn = aws_iam_role.scheduler[0].arn
 
     ecs_parameters {
       task_definition_arn = module.standardize.task_definition_arn
@@ -258,7 +274,7 @@ resource "aws_scheduler_schedule" "standardize" {
 }
 
 resource "aws_scheduler_schedule" "dbt" {
-  count = var.dbt_schedule_expression == null ? 0 : 1
+  count = local.dbt_schedule_enabled ? 1 : 0
 
   name                = local.dbt_schedule_name
   schedule_expression = var.dbt_schedule_expression
@@ -270,7 +286,7 @@ resource "aws_scheduler_schedule" "dbt" {
 
   target {
     arn      = var.ecs_cluster_arn
-    role_arn = aws_iam_role.scheduler.arn
+    role_arn = aws_iam_role.scheduler[0].arn
 
     ecs_parameters {
       task_definition_arn = module.dbt.task_definition_arn

@@ -61,13 +61,13 @@ output "dbt_ecr_repository_url" {
 }
 
 output "source_ingest_schedule_name" {
-  value = aws_scheduler_schedule.source_ingest.name
+  value = local.source_schedule_enabled ? aws_scheduler_schedule.source_ingest[0].name : null
 }
 
 output "standardize_schedule_name" {
-  value = aws_scheduler_schedule.standardize.name
+  value = local.standardize_schedule_enabled ? aws_scheduler_schedule.standardize[0].name : null
 }
 
 output "dbt_schedule_name" {
-  value = var.dbt_schedule_expression == null ? null : aws_scheduler_schedule.dbt[0].name
+  value = local.dbt_schedule_enabled ? aws_scheduler_schedule.dbt[0].name : null
 }

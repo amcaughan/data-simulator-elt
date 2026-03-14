@@ -45,11 +45,13 @@ variable "source_base_url_ssm_param_name" {
 }
 
 variable "ingest_schedule_expression" {
-  type = string
+  type    = string
+  default = null
 }
 
 variable "standardize_schedule_expression" {
-  type = string
+  type    = string
+  default = null
 }
 
 variable "dbt_schedule_expression" {
