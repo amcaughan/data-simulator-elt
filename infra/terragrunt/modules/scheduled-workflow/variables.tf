@@ -203,7 +203,7 @@ variable "standardize_output_slice_granularity" {
 
 variable "standardize_processed_base_prefix" {
   type    = string
-  default = "bronze"
+  default = "raw"
 }
 
 variable "standardize_processed_partition_fields_json" {

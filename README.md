@@ -33,8 +33,8 @@ Each workflow should be understandable in isolation:
 
 The intended data movement is:
 - source ingest writes exact payloads into `landing`
-- standardization jobs normalize and move data into `processed/bronze`
-- workflow-local dbt projects build silver and gold tables from `processed/bronze`
+- standardization jobs normalize and move data into `processed/raw`
+- workflow-local dbt projects build bronze, silver, and gold tables from `processed/raw`
 - dbt publishes audience-facing mart tables into `marts`
 
 The shared core is expected to own:

@@ -151,7 +151,7 @@ class StandardizeConfig:
                     "OUTPUT_SLICE_GRANULARITY", "day"
                 ),
                 processed_layout=StorageLayoutConfig(
-                    base_prefix=os.environ.get("PROCESSED_BASE_PREFIX", "bronze"),
+                    base_prefix=os.environ.get("PROCESSED_BASE_PREFIX", "raw"),
                     partition_fields=_json_list_env(
                         "PROCESSED_PARTITION_FIELDS_JSON",
                         list(

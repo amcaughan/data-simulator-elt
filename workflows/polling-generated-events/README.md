@@ -3,8 +3,8 @@ Frequent scheduled polling workflow.
 Intent:
 - repeatedly pull generated benchmark data from the simulator API
 - land exact source responses into the landing bucket
-- standardize landing files into day-level Parquet under `processed/bronze`
-- build workflow-local dbt silver, gold, and mart tables from `processed/bronze`
+- standardize landing files into day-level Parquet under `processed/raw`
+- build workflow-local dbt bronze, silver, gold, and mart tables from `processed/raw`
 
 This workflow owns its dbt project under `containers/workflows/polling-generated-events/dbt/`.
 
@@ -30,7 +30,7 @@ This workflow currently uses `slice_granularity = "hour"`, so a three-day sample
 backfill means three days of hourly slices rather than three daily pulls.
 
 The workflow-local dbt image now expects `standardize` to have already produced
-bronze parquet under `processed/bronze`. It bootstraps an Athena external table
+raw parquet under `processed/raw`. It bootstraps an Athena external table
 over that prefix, then materializes:
 - silver transaction and answer-key tables
 - gold row-level and daily aggregate tables
