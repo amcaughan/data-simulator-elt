@@ -1,6 +1,17 @@
 version: 2
 
 models:
+  - name: bronze_canonical_raw_bundles
+    description: Canonical standardized raw bundles selected per slice before row-level workflow-specific deduplication.
+    columns:
+      - name: raw_bundle_id
+        tests:
+          - not_null
+          - unique
+      - name: bundle_event_date
+        tests:
+          - not_null
+
   - name: bronze_transaction_events
     description: Canonical deduped event rows built from the standardized raw parquet packages.
     columns:
@@ -8,6 +19,9 @@ models:
         tests:
           - not_null
           - unique
+      - name: raw_bundle_id
+        tests:
+          - not_null
       - name: event_date
         tests:
           - not_null

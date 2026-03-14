@@ -3,7 +3,7 @@
   external_location=processed_table_location("bronze", "bronze_transaction_events")
 ) }}
 
-with typed as (
+with raw_rows as (
   select
     concat(_landing_key, ':', cast(__row_index as varchar)) as transaction_id,
     cast(__row_index as bigint) as source_row_index,
@@ -34,18 +34,31 @@ with typed as (
     cast(_schema_version as varchar) as schema_version,
     cast(_scenario_name as varchar) as scenario_name,
     cast(_response_row_count as bigint) as response_row_count,
+    cast(_raw_bundle_id as varchar) as raw_bundle_id,
+    cast(_raw_bundle_key as varchar) as raw_bundle_key,
+    cast(_raw_bundle_manifest_key as varchar) as raw_bundle_manifest_key,
+    try(cast(from_iso8601_timestamp(_raw_standardized_at) as timestamp)) as raw_standardized_ts,
+    cast(_raw_bundle_granularity as varchar) as raw_bundle_granularity,
+    cast(_raw_input_object_count as bigint) as raw_input_object_count,
+    cast(_raw_bundle_row_count as bigint) as raw_bundle_row_count,
     cast(date(from_iso8601_timestamp(_logical_date)) as date) as event_date
   from {{ source('raw', 'raw_polling_generated_events') }}
   where regexp_like("$path", '.*\\.parquet$')
 ),
+canonical_bundle_rows as (
+  select raw_rows.*
+  from raw_rows
+  inner join {{ ref('bronze_canonical_raw_bundles') }} canonical_bundles
+    on raw_rows.raw_bundle_id = canonical_bundles.raw_bundle_id
+),
 deduped as (
   select
-    typed.*,
+    canonical_bundle_rows.*,
     row_number() over (
       partition by transaction_id
       order by ingested_ts desc nulls last, event_ts desc, source_row_index desc
     ) as row_num
-  from typed
+  from canonical_bundle_rows
 )
 
 select
@@ -73,6 +86,13 @@ select
   schema_version,
   scenario_name,
   response_row_count,
+  raw_bundle_id,
+  raw_bundle_key,
+  raw_bundle_manifest_key,
+  raw_standardized_ts,
+  raw_bundle_granularity,
+  raw_input_object_count,
+  raw_bundle_row_count,
   event_date
 from deduped
 where row_num = 1
