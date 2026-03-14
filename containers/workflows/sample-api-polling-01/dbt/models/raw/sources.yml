@@ -2,8 +2,8 @@ version: 2
 
 sources:
   - name: raw
-    description: Standardized raw parquet slices produced by the polling workflow.
+    description: Standardized raw parquet slices produced by the sample API polling workflow.
     schema: "{{ target.schema }}"
     tables:
-      - name: raw_polling_generated_events
+      - name: raw_sample_api_polling_01
         description: Raw transaction benchmark rows loaded from processed/raw.

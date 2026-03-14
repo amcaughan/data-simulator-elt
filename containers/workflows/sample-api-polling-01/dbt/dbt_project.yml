@@ -1,8 +1,8 @@
-name: polling_generated_events
+name: sample_api_polling_01
 version: "1.0.0"
 config-version: 2
 
-profile: polling_generated_events
+profile: sample_api_polling_01
 
 model-paths:
   - models
@@ -18,7 +18,7 @@ on-run-start:
   - "{{ ensure_raw_external_table() }}"
 
 models:
-  polling_generated_events:
+  sample_api_polling_01:
     +materialized: table
     +format: parquet
     +table_type: hive

@@ -42,7 +42,7 @@ with raw_rows as (
     cast(_raw_input_object_count as bigint) as raw_input_object_count,
     cast(_raw_bundle_row_count as bigint) as raw_bundle_row_count,
     cast(date(from_iso8601_timestamp(_logical_date)) as date) as event_date
-  from {{ source('raw', 'raw_polling_generated_events') }}
+  from {{ source('raw', 'raw_sample_api_polling_01') }}
 ),
 canonical_bundle_rows as (
   select raw_rows.*

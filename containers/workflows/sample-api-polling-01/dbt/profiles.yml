@@ -1,4 +1,4 @@
-polling_generated_events:
+sample_api_polling_01:
   target: ecs
   outputs:
     ecs:

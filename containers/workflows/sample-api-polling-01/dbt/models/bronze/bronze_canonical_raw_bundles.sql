@@ -20,7 +20,7 @@ with bundle_candidates as (
       cast(date(from_iso8601_timestamp(_raw_bundle_logical_date)) as date),
       cast(date(from_iso8601_timestamp(_raw_standardized_at)) as date)
     ) as bundle_event_date
-  from {{ source('raw', 'raw_polling_generated_events') }}
+  from {{ source('raw', 'raw_sample_api_polling_01') }}
 ),
 bundle_rollup as (
   select
