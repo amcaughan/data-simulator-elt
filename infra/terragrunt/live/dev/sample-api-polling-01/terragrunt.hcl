@@ -6,18 +6,13 @@ dependency "core" {
   config_path = "../core"
 
   mock_outputs = {
-    environment                         = "dev"
-    ecs_cluster_name                    = "data-simulator-elt-dev"
     ecs_cluster_arn                     = "arn:aws:ecs:us-east-2:111111111111:cluster/data-simulator-elt-dev"
     glue_database_name                  = "data_simulator_elt_dev"
     athena_workgroup_name               = "data-simulator-elt-dev"
     athena_results_bucket_name          = "data-simulator-elt-dev-athena-results-111111111111-us-east-2"
-    network_vpc_id                      = "vpc-placeholder"
     network_private_subnet_ids          = ["subnet-placeholder"]
     network_security_group_id           = "sg-placeholder"
-    source_ingest_ecr_repository_url    = "111111111111.dkr.ecr.us-east-2.amazonaws.com/data-simulator-elt-dev-source-ingest"
     source_ingest_image_uri             = "111111111111.dkr.ecr.us-east-2.amazonaws.com/data-simulator-elt-dev-source-ingest:sha-placeholder"
-    standardize_ecr_repository_url      = "111111111111.dkr.ecr.us-east-2.amazonaws.com/data-simulator-elt-dev-standardize"
     standardize_image_uri               = "111111111111.dkr.ecr.us-east-2.amazonaws.com/data-simulator-elt-dev-standardize:sha-placeholder"
   }
 
