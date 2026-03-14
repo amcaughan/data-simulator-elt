@@ -1,4 +1,4 @@
-Workflow-owned dbt project for `stream-sampled-events`.
+Workflow-owned dbt project for `sample-file-delivery-01`.
 
 This dbt runtime is intentionally owned by the workflow rather than the shared
 ELT core. Different workflows are expected to diverge in model shape, tests,

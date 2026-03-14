@@ -1,0 +1,1 @@
+# Add workflow-specific dbt dependencies here when the sample-stream-events-01 dbt project is implemented.

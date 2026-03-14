@@ -53,15 +53,15 @@ Options:
 
 Examples:
   ./scripts/run-scheduled-workflow.sh \
-    --workflow polling-generated-events
+    --workflow sample-api-polling-01
 
   ./scripts/run-scheduled-workflow.sh \
-    --workflow polling-generated-events \
+    --workflow sample-api-polling-01 \
     --slice-selector-mode relative \
     --slice-relative-count 7
 
   ./scripts/run-scheduled-workflow.sh \
-    --workflow batch-file-delivery \
+    --workflow sample-file-delivery-01 \
     --step source-ingest \
     --slice-selector-mode pinned \
     --slice-pinned-at 2026-03-01

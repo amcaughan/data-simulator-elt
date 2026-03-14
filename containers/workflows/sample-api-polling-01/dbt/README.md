@@ -1,4 +1,4 @@
-Workflow-owned dbt project for `polling-generated-events`.
+Workflow-owned dbt project for `sample-api-polling-01`.
 
 This dbt runtime is intentionally owned by the workflow rather than the shared
 ELT core. Different workflows are expected to diverge in model shape, tests,

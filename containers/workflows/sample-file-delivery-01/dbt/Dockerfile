@@ -8,4 +8,4 @@ RUN if [ -s /tmp/requirements.txt ]; then python -m pip install --no-cache-dir -
 
 COPY . /app/dbt
 
-ENTRYPOINT ["python", "-c", "print('stream-sampled-events dbt placeholder')"]
+ENTRYPOINT ["python", "-c", "print('sample-file-delivery-01 dbt placeholder')"]

@@ -31,7 +31,7 @@ terraform {
 inputs = {
   environment                      = "dev"
   project_name                     = "data-simulator-elt"
-  workflow_name                    = "batch-file-delivery"
+  workflow_name                    = "sample-api-polling-01"
   ecs_cluster_arn                  = dependency.core.outputs.ecs_cluster_arn
   network_private_subnet_ids       = dependency.core.outputs.network_private_subnet_ids
   network_security_group_id        = dependency.core.outputs.network_security_group_id
@@ -39,22 +39,22 @@ inputs = {
   athena_workgroup_name            = dependency.core.outputs.athena_workgroup_name
   athena_results_bucket_name       = dependency.core.outputs.athena_results_bucket_name
   source_base_url_ssm_param_name   = "/services/data-simulator-api/dev/private_api_invoke_url"
-  ingest_schedule_expression       = "cron(15 5 * * ? *)"
-  standardize_schedule_expression  = "cron(45 5 * * ? *)"
+  ingest_schedule_expression       = null
+  standardize_schedule_expression  = null
   dbt_schedule_expression          = null
   source_adapter                   = "simulator_api"
   source_adapter_config_json       = jsonencode({
-    preset_id      = "batch_delivery_benchmark"
-    row_count      = 5000
+    preset_id      = "transaction_benchmark"
+    row_count      = 250
     seed_strategy  = "derived"
     request_overrides = {}
   })
   standardize_strategy             = "simulator_api"
   standardize_strategy_config_json = jsonencode({
-    preset_id = "batch_delivery_benchmark"
+    preset_id = "transaction_benchmark"
   })
-  slice_granularity                = "day"
-  dbt_source_dir                   = "${get_repo_root()}/containers/workflows/batch-file-delivery/dbt"
+  slice_granularity                = "hour"
+  dbt_source_dir                   = "${get_repo_root()}/containers/workflows/sample-api-polling-01/dbt"
   source_ingest_container_image    = dependency.core.outputs.source_ingest_image_uri
   standardize_container_image      = dependency.core.outputs.standardize_image_uri
 }

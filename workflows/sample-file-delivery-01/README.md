@@ -6,18 +6,18 @@ Intent:
 - standardize landing files into day-level Parquet under `processed/raw`
 - later support downstream models for file-drop style ingestion and normalization
 
-This workflow owns its dbt project under `containers/workflows/batch-file-delivery/dbt/`.
+This workflow owns its dbt project under `containers/workflows/sample-file-delivery-01/dbt/`.
 
 Manual examples:
 
 ```bash
 ./scripts/run-scheduled-workflow.sh \
-  --workflow batch-file-delivery
+  --workflow sample-file-delivery-01
 ```
 
 ```bash
 ./scripts/run-scheduled-workflow.sh \
-  --workflow batch-file-delivery \
+  --workflow sample-file-delivery-01 \
   --step source-ingest \
   --planning-mode temporal \
   --slice-selector-mode range \

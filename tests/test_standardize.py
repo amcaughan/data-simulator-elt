@@ -68,7 +68,7 @@ class FakeS3Client:
 class StandardizeTests(unittest.TestCase):
     def build_config(self, **overrides) -> "StandardizeConfig":
         values = {
-            "workflow_name": "polling-generated-events",
+            "workflow_name": "sample-api-polling-01",
             "standardize_strategy": "simulator_api",
             "landing_bucket_name": "landing-bucket",
             "processed_bucket_name": "processed-bucket",
@@ -101,7 +101,7 @@ class StandardizeTests(unittest.TestCase):
 
     def build_manual_config(self, **overrides) -> "StandardizeConfig":
         values = {
-            "workflow_name": "polling-generated-events",
+            "workflow_name": "sample-api-polling-01",
             "standardize_strategy": "simulator_api",
             "landing_bucket_name": "landing-bucket",
             "processed_bucket_name": "processed-bucket",

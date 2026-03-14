@@ -23,10 +23,10 @@ service endpoints needed for ECS task startup and logging.
 
 Current environment layout:
 - `dev/core`
-- `dev/polling-generated-events`
-- `dev/batch-file-delivery`
-- `dev/stream-sampled-events`
+- `dev/sample-api-polling-01`
+- `dev/sample-file-delivery-01`
+- `dev/sample-stream-events-01`
 - `prod/core`
-- `prod/polling-generated-events`
-- `prod/batch-file-delivery`
-- `prod/stream-sampled-events`
+- `prod/sample-api-polling-01`
+- `prod/sample-file-delivery-01`
+- `prod/sample-stream-events-01`

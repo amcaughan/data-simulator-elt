@@ -6,18 +6,18 @@ Intent:
 - standardize landing files into day-level Parquet under `processed/raw`
 - build workflow-local dbt bronze, silver, gold, and mart tables from `processed/raw`
 
-This workflow owns its dbt project under `containers/workflows/polling-generated-events/dbt/`.
+This workflow owns its dbt project under `containers/workflows/sample-api-polling-01/dbt/`.
 
 Manual examples:
 
 ```bash
 ./scripts/run-scheduled-workflow.sh \
-  --workflow polling-generated-events
+  --workflow sample-api-polling-01
 ```
 
 ```bash
 ./scripts/run-scheduled-workflow.sh \
-  --workflow polling-generated-events \
+  --workflow sample-api-polling-01 \
   --step source-ingest \
   --planning-mode temporal \
   --slice-selector-mode range \

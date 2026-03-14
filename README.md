@@ -72,11 +72,11 @@ path will also need stream-service access.
 
 ## Initial example workloads
 
-- `polling-generated-events`
+- `sample-api-polling-01`
   frequent scheduled pulls that act like a polling workflow
-- `batch-file-delivery`
+- `sample-file-delivery-01`
   low-frequency larger file-drop style ingestion
-- `stream-sampled-events`
+- `sample-stream-events-01`
   stream-oriented ingestion with a simulated upstream producer
 
 ## Teardown posture
@@ -120,14 +120,14 @@ there is a deliberate reason to automate deploys.
 For one-off manual runs and quick backfills, use:
 
 ```bash
-./scripts/run-scheduled-workflow.sh --workflow polling-generated-events
+./scripts/run-scheduled-workflow.sh --workflow sample-api-polling-01
 ```
 
 or:
 
 ```bash
 ./scripts/run-scheduled-workflow.sh \
-  --workflow polling-generated-events \
+  --workflow sample-api-polling-01 \
   --step source-ingest \
   --planning-mode temporal \
   --slice-selector-mode range \
@@ -140,7 +140,7 @@ To run the workflow-local dbt layer manually:
 
 ```bash
 ./scripts/run-scheduled-workflow.sh \
-  --workflow polling-generated-events \
+  --workflow sample-api-polling-01 \
   --step dbt \
   --wait
 ```

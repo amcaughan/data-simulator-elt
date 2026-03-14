@@ -166,7 +166,7 @@ class SourceIngestTests(unittest.TestCase):
         slice_window_override = overrides.pop("slice_window", None)
         landing_layout_override = overrides.pop("landing_layout", None)
         values = {
-            "workflow_name": "polling-generated-events",
+            "workflow_name": "sample-api-polling-01",
             "source_adapter": "simulator_api",
             "landing_bucket_name": "landing-bucket",
             "aws_region": "us-east-2",
@@ -296,14 +296,14 @@ class SourceIngestTests(unittest.TestCase):
         logical_date = datetime(2026, 3, 12, 0, 0, tzinfo=UTC)
 
         first = derive_seed(
-            workflow_name="polling-generated-events",
+            workflow_name="sample-api-polling-01",
             preset_id="transaction_benchmark",
             logical_date=logical_date,
             strategy="derived",
             fixed_seed=None,
         )
         second = derive_seed(
-            workflow_name="polling-generated-events",
+            workflow_name="sample-api-polling-01",
             preset_id="transaction_benchmark",
             logical_date=logical_date,
             strategy="derived",
@@ -314,7 +314,7 @@ class SourceIngestTests(unittest.TestCase):
 
     def test_live_seed_derivation_omits_seed_for_derived_strategy(self):
         seed = derive_seed(
-            workflow_name="polling-generated-events",
+            workflow_name="sample-api-polling-01",
             preset_id="transaction_benchmark",
             logical_date=None,
             strategy="derived",
@@ -366,7 +366,7 @@ class SourceIngestTests(unittest.TestCase):
 
     def test_simulator_adapter_retries_transient_http_errors(self):
         adapter = SimulatorApiAdapter(
-            workflow_name="polling-generated-events",
+            workflow_name="sample-api-polling-01",
             aws_region="us-east-2",
             runtime_config=type("RuntimeConfig", (), {"source_base_url": "https://example.com"})(),
             adapter_config=SimulatorApiConfig.from_dict(
@@ -709,7 +709,7 @@ class SourceIngestTests(unittest.TestCase):
         self.assertEqual(payload_call["Bucket"], "landing-bucket")
         self.assertEqual(payload_call["ContentType"], "application/json")
         self.assertEqual(
-            payload_call["Metadata"]["workflow_name"], "polling-generated-events"
+            payload_call["Metadata"]["workflow_name"], "sample-api-polling-01"
         )
         self.assertEqual(payload_call["Metadata"]["preset_id"], "transaction_benchmark")
         self.assertEqual(
