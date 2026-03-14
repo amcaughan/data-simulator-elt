@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from standardize.config import StandardizeConfig
 from standardize.strategies.base import StandardizeStrategy
+from standardize.strategies.batch_delivery_csv import (
+    BatchDeliveryCsvStandardizeStrategy,
+)
 from standardize.strategies.simulator_api import (
     SimulatorApiStandardizeStrategy,
 )
@@ -10,6 +13,7 @@ from standardize.strategies.simulator_api import (
 STRATEGIES_BY_KEY: dict[str, type[StandardizeStrategy]] = {
     strategy_type.strategy_key(): strategy_type
     for strategy_type in (
+        BatchDeliveryCsvStandardizeStrategy,
         SimulatorApiStandardizeStrategy,
     )
 }

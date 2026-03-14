@@ -315,41 +315,37 @@ def map_fetch_outputs(
     fetched: FetchResult,
 ) -> list[tuple[StorageTarget, FetchOutput]]:
     if isinstance(plan.request, ManualFetchRequest):
-        if len(fetched.outputs) != 1:
-            raise ValueError("Manual fetch requests must return exactly one output")
-        return [(plan.storage_targets[0], fetched.outputs[0])]
-    if len(plan.storage_targets) == 1 and len(fetched.outputs) == 1:
-        output = fetched.outputs[0]
+        return [(plan.storage_targets[0], output) for output in fetched.outputs]
+    if len(plan.storage_targets) == 1:
         target = plan.storage_targets[0]
-        if output.logical_date not in {None, target.logical_slice.logical_date}:
-            raise ValueError(
-                "Single-output fetch result logical_date does not match the planned "
-                "storage target"
-            )
-        return [(target, output)]
+        assignments: list[tuple[StorageTarget, FetchOutput]] = []
+        for output in fetched.outputs:
+            if output.logical_date not in {None, target.logical_slice.logical_date}:
+                raise ValueError(
+                    "Single-target fetch result logical_date does not match the planned "
+                    "storage target"
+                )
+            assignments.append((target, output))
+        return assignments
 
-    outputs_by_date: dict[datetime, FetchOutput] = {}
+    outputs_by_date: dict[datetime, list[FetchOutput]] = {}
     for output in fetched.outputs:
         if output.logical_date is None:
             raise ValueError(
                 "Multi-target fetch results must label each output with logical_date"
             )
-        if output.logical_date in outputs_by_date:
-            raise ValueError(
-                f"Duplicate fetch output logical_date: {output.logical_date.isoformat()}"
-            )
-        outputs_by_date[output.logical_date] = output
+        outputs_by_date.setdefault(output.logical_date, []).append(output)
 
     assignments: list[tuple[StorageTarget, FetchOutput]] = []
     for target in plan.storage_targets:
         logical_date = target.logical_slice.logical_date
         try:
-            output = outputs_by_date.pop(logical_date)
+            outputs = outputs_by_date.pop(logical_date)
         except KeyError as exc:
             raise ValueError(
                 f"Missing fetch output for logical_date {logical_date.isoformat()}"
             ) from exc
-        assignments.append((target, output))
+        assignments.extend((target, output) for output in outputs)
 
     if outputs_by_date:
         unexpected_dates = ", ".join(

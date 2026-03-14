@@ -246,6 +246,46 @@ class StandardizeTests(unittest.TestCase):
         self.assertEqual(manifest["input"]["object_count"], 2)
         self.assertEqual(len(manifest["input"]["keys"]), 2)
 
+    def test_run_standardize_parses_batch_delivery_csv(self):
+        config = self.build_config(
+            workflow_name="sample-file-delivery-01",
+            standardize_strategy="batch_delivery_csv",
+            standardize_strategy_config={"preset_id": "batch_delivery_benchmark"},
+        )
+        logical_slice = config.iter_slices()[0]
+        key = "client=acme/project=finance/year=2026/month=03/day=12/location_1.csv"
+        s3_client = FakeS3Client(
+            objects={
+                ("landing-bucket", key): {
+                    "body": (
+                        "source_system_id,delivery_id,delivery_date,record_number,member_id,allowed_amount\n"
+                        "location_1,delivery_a,2026-03-12,1,100001,42.5\n"
+                        "location_1,delivery_a,2026-03-12,2,100002,10.0\n"
+                    ).encode("utf-8"),
+                    "metadata": {
+                        "logical_date": logical_slice.logical_date.isoformat(),
+                        "preset_id": "batch_delivery_benchmark",
+                        "source_system_id": "location_1",
+                        "delivery_id": "delivery_a",
+                        "delivery_date": "2026-03-12",
+                        "feed_type": "member_snapshot",
+                        "row_count": "2",
+                    },
+                }
+            }
+        )
+
+        with unittest.mock.patch("builtins.print"):
+            results = run_standardize(config=config, s3_client=s3_client)
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].row_count, 2)
+        parquet_call = next(call for call in s3_client.calls if call["Key"].endswith(".parquet"))
+        self.assertEqual(
+            parquet_call["Metadata"]["standardize_strategy"],
+            "batch_delivery_csv",
+        )
+
     def test_manual_mode_reads_targeted_prefix_and_writes_manifest(self):
         import json
 

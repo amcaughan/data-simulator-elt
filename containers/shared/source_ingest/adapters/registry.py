@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 from source_ingest.adapters.base import SourceAdapter
+from source_ingest.adapters.simulator_batch_delivery import SimulatorBatchDeliveryAdapter
 from source_ingest.adapters.simulator_api import SimulatorApiAdapter
 from source_ingest.config import IngestConfig
 
-ADAPTER_TYPES: tuple[type[SourceAdapter], ...] = (SimulatorApiAdapter,)
+ADAPTER_TYPES: tuple[type[SourceAdapter], ...] = (
+    SimulatorApiAdapter,
+    SimulatorBatchDeliveryAdapter,
+)
 ADAPTERS_BY_KEY = {
     adapter_type.adapter_key(): adapter_type for adapter_type in ADAPTER_TYPES
 }

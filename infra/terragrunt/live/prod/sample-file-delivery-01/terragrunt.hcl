@@ -6,18 +6,13 @@ dependency "core" {
   config_path = "../core"
 
   mock_outputs = {
-    environment                         = "prod"
-    ecs_cluster_name                    = "data-simulator-elt-prod"
     ecs_cluster_arn                     = "arn:aws:ecs:us-east-2:111111111111:cluster/data-simulator-elt-prod"
     glue_database_name                  = "data_simulator_elt_prod"
     athena_workgroup_name               = "data-simulator-elt-prod"
     athena_results_bucket_name          = "data-simulator-elt-prod-athena-results-111111111111-us-east-2"
-    network_vpc_id                      = "vpc-placeholder"
     network_private_subnet_ids          = ["subnet-placeholder"]
     network_security_group_id           = "sg-placeholder"
-    source_ingest_ecr_repository_url    = "111111111111.dkr.ecr.us-east-2.amazonaws.com/data-simulator-elt-prod-source-ingest"
     source_ingest_image_uri             = "111111111111.dkr.ecr.us-east-2.amazonaws.com/data-simulator-elt-prod-source-ingest:sha-placeholder"
-    standardize_ecr_repository_url      = "111111111111.dkr.ecr.us-east-2.amazonaws.com/data-simulator-elt-prod-standardize"
     standardize_image_uri               = "111111111111.dkr.ecr.us-east-2.amazonaws.com/data-simulator-elt-prod-standardize:sha-placeholder"
   }
 
@@ -39,17 +34,29 @@ inputs = {
   athena_workgroup_name            = dependency.core.outputs.athena_workgroup_name
   athena_results_bucket_name       = dependency.core.outputs.athena_results_bucket_name
   source_base_url_ssm_param_name   = "/services/data-simulator-api/prod/private_api_invoke_url"
-  ingest_schedule_expression       = "cron(15 5 * * ? *)"
-  standardize_schedule_expression  = "cron(45 5 * * ? *)"
+  ingest_schedule_expression       = null
+  standardize_schedule_expression  = null
   dbt_schedule_expression          = null
-  source_adapter                   = "simulator_api"
+  source_adapter                   = "simulator_batch_delivery"
   source_adapter_config_json       = jsonencode({
     preset_id      = "batch_delivery_benchmark"
-    row_count      = 5000
+    row_count      = 2500
     seed_strategy  = "derived"
     request_overrides = {}
+    deliveries = [
+      {
+        source_system_id = "location_1"
+        feed_type        = "member_snapshot"
+        object_name      = "location_1.csv"
+      },
+      {
+        source_system_id = "location_2"
+        feed_type        = "member_snapshot"
+        object_name      = "location_2.csv"
+      },
+    ]
   })
-  standardize_strategy             = "simulator_api"
+  standardize_strategy             = "batch_delivery_csv"
   standardize_strategy_config_json = jsonencode({
     preset_id = "batch_delivery_benchmark"
   })

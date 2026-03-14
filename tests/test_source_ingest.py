@@ -30,6 +30,11 @@ from source_ingest.adapters.simulator_api import (
     build_generate_payload,
     derive_seed,
 )
+from source_ingest.adapters.simulator_batch_delivery import (
+    DeliverySpec,
+    SimulatorBatchDeliveryAdapter,
+    SimulatorBatchDeliveryConfig,
+)
 from source_ingest.config import (
     IngestConfig,
     ManualPlanningConfig,
@@ -457,6 +462,87 @@ class SourceIngestTests(unittest.TestCase):
         mock_sleep.assert_called_once()
         self.assertEqual(output.outputs[0].content_type, "application/json")
 
+    def test_batch_delivery_adapter_config_requires_deliveries(self):
+        with self.assertRaisesRegex(ValueError, "deliveries"):
+            SimulatorBatchDeliveryConfig.from_dict(
+                {
+                    "preset_id": "batch_delivery_benchmark",
+                    "row_count": 10,
+                    "seed_strategy": "derived",
+                    "request_overrides": {},
+                    "deliveries": [],
+                }
+            )
+
+    def test_batch_delivery_adapter_returns_two_csv_files_for_one_slice(self):
+        adapter = SimulatorBatchDeliveryAdapter(
+            workflow_name="sample-file-delivery-01",
+            aws_region="us-east-2",
+            runtime_config=type("RuntimeConfig", (), {"source_base_url": "https://example.com"})(),
+            adapter_config=SimulatorBatchDeliveryConfig(
+                preset_id="batch_delivery_benchmark",
+                row_count=2,
+                seed_strategy="derived",
+                fixed_seed=None,
+                request_overrides={},
+                deliveries=(
+                    DeliverySpec(
+                        source_system_id="location_1",
+                        feed_type="member_snapshot",
+                        object_name="location_1.csv",
+                    ),
+                    DeliverySpec(
+                        source_system_id="location_2",
+                        feed_type="member_snapshot",
+                        object_name="location_2.csv",
+                    ),
+                ),
+            ),
+        )
+
+        with patch.object(
+            adapter,
+            "_signed_post",
+            return_value=(
+                json.dumps(
+                    {
+                        "row_count": 2,
+                        "fields": ["source_system_id", "delivery_id", "record_number"],
+                        "rows": [
+                            {
+                                "source_system_id": "location_1",
+                                "delivery_id": "delivery_a",
+                                "record_number": 1,
+                            },
+                            {
+                                "source_system_id": "location_1",
+                                "delivery_id": "delivery_a",
+                                "record_number": 2,
+                            },
+                        ],
+                    }
+                ).encode("utf-8"),
+                "application/json",
+            ),
+        ):
+            result = adapter._fetch_slice(
+                SliceFetchRequest(
+                    slice=RequestedSlice(
+                        logical_date=datetime(2026, 3, 1, 0, 0, tzinfo=UTC),
+                        slice_start=datetime(2026, 3, 1, 0, 0, tzinfo=UTC),
+                        slice_end=datetime(2026, 3, 1, 23, 59, 59, tzinfo=UTC),
+                        granularity="day",
+                    )
+                )
+            )
+
+        self.assertEqual(len(result.outputs), 2)
+        self.assertEqual(
+            [output.suggested_object_name for output in result.outputs],
+            ["location_1.csv", "location_2.csv"],
+        )
+        self.assertTrue(all(output.content_type == "text/csv" for output in result.outputs))
+
     def test_map_fetch_outputs_matches_multi_slice_results_to_storage_targets(self):
         from common.slices import SliceWindowConfig
 
@@ -501,6 +587,68 @@ class SourceIngestTests(unittest.TestCase):
             [target.logical_slice.logical_date for target, _ in assignments],
             [target.logical_slice.logical_date for target in storage_targets],
         )
+
+    def test_map_fetch_outputs_allows_multiple_outputs_for_one_slice(self):
+        from common.slices import SliceWindowConfig
+
+        config = self.build_config(
+            workflow_name="sample-file-delivery-01",
+            source_adapter="simulator_batch_delivery",
+            source_adapter_config={
+                "preset_id": "batch_delivery_benchmark",
+                "row_count": 2,
+                "seed_strategy": "derived",
+                "request_overrides": {},
+                "deliveries": [
+                    {
+                        "source_system_id": "location_1",
+                        "feed_type": "member_snapshot",
+                    },
+                    {
+                        "source_system_id": "location_2",
+                        "feed_type": "member_snapshot",
+                    },
+                ],
+            },
+            slice_window=SliceWindowConfig.pinned(
+                slice_granularity="day",
+                pinned_at="2026-03-01",
+            ),
+        )
+        storage_targets = build_storage_targets(config)
+        target = storage_targets[0]
+        plan = FetchPlan(
+            request=SliceFetchRequest(
+                slice=RequestedSlice(
+                    logical_date=target.logical_slice.logical_date,
+                    slice_start=target.logical_slice.slice_start,
+                    slice_end=target.logical_slice.slice_end,
+                    granularity=target.logical_slice.granularity,
+                )
+            ),
+            storage_targets=storage_targets,
+        )
+        fetched = FetchResult(
+            outputs=(
+                FetchOutput(
+                    body=b"a,b\n1,2\n",
+                    content_type="text/csv",
+                    logical_date=target.logical_slice.logical_date,
+                    suggested_object_name="location_1.csv",
+                ),
+                FetchOutput(
+                    body=b"a,b\n3,4\n",
+                    content_type="text/csv",
+                    logical_date=target.logical_slice.logical_date,
+                    suggested_object_name="location_2.csv",
+                ),
+            )
+        )
+
+        assignments = map_fetch_outputs(plan, fetched)
+
+        self.assertEqual(len(assignments), 2)
+        self.assertTrue(all(assigned_target == target for assigned_target, _ in assignments))
 
     def test_build_landing_key_uses_content_type_suffix(self):
         from common.slices import SliceWindowConfig
