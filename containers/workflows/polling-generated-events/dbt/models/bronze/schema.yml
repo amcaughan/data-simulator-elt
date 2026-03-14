@@ -1,0 +1,13 @@
+version: 2
+
+models:
+  - name: bronze_transaction_events
+    description: Canonical deduped event rows built from the standardized raw parquet packages.
+    columns:
+      - name: transaction_id
+        tests:
+          - not_null
+          - unique
+      - name: event_date
+        tests:
+          - not_null

@@ -1,16 +1,20 @@
 # models
 
 dbt models for this workflow are organized by warehouse layer:
+- `raw/`
 - `bronze/`
 - `silver/`
 - `gold/`
 - `marts/`
 
-`bronze/` holds source declarations for the standardized parquet already written
-to `processed/bronze`.
+`raw/` holds source declarations for the standardized parquet already written to
+`processed/raw`.
 
-`silver/` keeps minimally cleaned row-grain models, including the split between
-transaction facts and anomaly answer-key metadata.
+`bronze/` holds the first warehouse layer: canonical deduped event rows with
+typed source fields and lineage.
+
+`silver/` splits the bronze events into cleaner semantic row-grain models,
+separating transaction facts from anomaly answer-key metadata.
 
 `gold/` adds derived columns and aggregate tables that act as the canonical
 warehouse outputs for this workflow.

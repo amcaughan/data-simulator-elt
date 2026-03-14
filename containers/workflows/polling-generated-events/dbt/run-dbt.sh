@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+DBT_COMMAND="${DBT_COMMAND:-run}"
+
 DBT_ARGS=(
-  build
+  "${DBT_COMMAND}"
   --project-dir /app/dbt
   --profiles-dir /app/dbt
 )

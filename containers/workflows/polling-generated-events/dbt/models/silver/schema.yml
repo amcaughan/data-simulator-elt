@@ -2,7 +2,7 @@ version: 2
 
 models:
   - name: silver_transactions
-    description: Typed transaction rows without anomaly answer-key leakage.
+    description: Canonical transaction rows without anomaly answer-key leakage.
     columns:
       - name: transaction_id
         tests:
@@ -13,7 +13,7 @@ models:
           - not_null
 
   - name: silver_transaction_answer_keys
-    description: Sparse answer-key records for anomalous transactions and labeled events.
+    description: Sparse answer-key records split out of the bronze event table.
     columns:
       - name: transaction_id
         tests:

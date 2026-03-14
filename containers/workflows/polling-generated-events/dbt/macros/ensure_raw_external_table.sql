@@ -1,9 +1,9 @@
-{% macro ensure_bronze_external_table() %}
+{% macro ensure_raw_external_table() %}
   {% if execute %}
-    {% set bronze_table = target.schema ~ '.bronze_polling_generated_events' %}
-    {% set bronze_location = "s3://" ~ env_var("PROCESSED_BUCKET_NAME") ~ "/bronze/" %}
+    {% set raw_table = target.schema ~ '.raw_polling_generated_events' %}
+    {% set raw_location = "s3://" ~ env_var("PROCESSED_BUCKET_NAME") ~ "/raw/" %}
     {% set create_sql %}
-      CREATE EXTERNAL TABLE IF NOT EXISTS {{ bronze_table }} (
+      CREATE EXTERNAL TABLE IF NOT EXISTS {{ raw_table }} (
         `__row_index` bigint,
         `__is_anomaly` boolean,
         `__labels` string,
@@ -32,9 +32,9 @@
         `day` string
       )
       STORED AS PARQUET
-      LOCATION '{{ bronze_location }}'
+      LOCATION '{{ raw_location }}'
     {% endset %}
     {% do run_query(create_sql) %}
-    {% do run_query("MSCK REPAIR TABLE " ~ bronze_table) %}
+    {% do run_query("MSCK REPAIR TABLE " ~ raw_table) %}
   {% endif %}
 {% endmacro %}

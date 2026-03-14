@@ -1,4 +1,7 @@
-{{ config(partitioned_by=["event_date"]) }}
+{{ config(
+  partitioned_by=["event_date"],
+  external_location=marts_table_location("analytics", "analytics_daily_transaction_metrics")
+) }}
 
 select
   channel,

@@ -1,4 +1,7 @@
-{{ config(partitioned_by=["event_date"]) }}
+{{ config(
+  partitioned_by=["event_date"],
+  external_location=marts_table_location("management", "management_daily_summary")
+) }}
 
 select
   sum(transaction_count) as transaction_count,

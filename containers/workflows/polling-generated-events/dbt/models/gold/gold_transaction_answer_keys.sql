@@ -1,4 +1,7 @@
-{{ config(partitioned_by=["event_date"]) }}
+{{ config(
+  partitioned_by=["event_date"],
+  external_location=processed_table_location("gold", "gold_transaction_answer_keys")
+) }}
 
 select
   transaction_id,

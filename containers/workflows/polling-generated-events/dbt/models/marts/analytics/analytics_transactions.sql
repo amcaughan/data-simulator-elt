@@ -1,4 +1,7 @@
-{{ config(partitioned_by=["event_date"]) }}
+{{ config(
+  partitioned_by=["event_date"],
+  external_location=marts_table_location("analytics", "analytics_transactions")
+) }}
 
 select
   transaction_id,
