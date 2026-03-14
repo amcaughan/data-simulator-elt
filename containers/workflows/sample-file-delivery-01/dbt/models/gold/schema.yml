@@ -1,0 +1,14 @@
+version: 2
+
+models:
+  - name: gold_daily_delivery_metrics
+    columns:
+      - name: event_date
+        tests:
+          - not_null
+
+  - name: gold_source_system_daily_metrics
+    columns:
+      - name: location_code
+        tests:
+          - not_null

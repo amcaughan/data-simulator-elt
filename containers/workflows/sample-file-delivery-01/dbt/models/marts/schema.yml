@@ -1,0 +1,20 @@
+version: 2
+
+models:
+  - name: analytics_delivery_records
+    columns:
+      - name: delivery_record_id
+        tests:
+          - not_null
+
+  - name: analytics_daily_delivery_metrics
+    columns:
+      - name: event_date
+        tests:
+          - not_null
+
+  - name: management_daily_summary
+    columns:
+      - name: event_date
+        tests:
+          - not_null

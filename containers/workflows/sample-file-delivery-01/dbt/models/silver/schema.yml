@@ -1,0 +1,23 @@
+version: 2
+
+models:
+  - name: silver_delivery_records
+    description: Combined canonical row-level records from all landed location files, with explicit location labeling for downstream comparisons.
+    columns:
+      - name: delivery_record_id
+        tests:
+          - not_null
+          - unique
+      - name: location_code
+        tests:
+          - not_null
+      - name: location_label
+        tests:
+          - not_null
+
+  - name: silver_delivery_batches
+    description: One row per delivered location file after bronze canonicalization, suitable for cross-location delivery comparisons.
+    columns:
+      - name: delivery_id
+        tests:
+          - not_null

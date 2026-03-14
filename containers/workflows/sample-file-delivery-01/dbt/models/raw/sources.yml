@@ -1,0 +1,7 @@
+version: 2
+
+sources:
+  - name: raw
+    schema: "{{ target.schema }}"
+    tables:
+      - name: raw_sample_file_delivery_01

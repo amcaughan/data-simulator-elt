@@ -1,0 +1,25 @@
+version: 2
+
+models:
+  - name: bronze_canonical_raw_bundles
+    columns:
+      - name: raw_bundle_id
+        tests:
+          - not_null
+          - unique
+      - name: bundle_event_date
+        tests:
+          - not_null
+
+  - name: bronze_delivery_records
+    columns:
+      - name: delivery_record_id
+        tests:
+          - not_null
+          - unique
+      - name: raw_bundle_id
+        tests:
+          - not_null
+      - name: event_date
+        tests:
+          - not_null
