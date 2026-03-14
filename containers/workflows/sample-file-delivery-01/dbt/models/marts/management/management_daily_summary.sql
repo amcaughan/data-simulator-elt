@@ -4,10 +4,10 @@
 ) }}
 
 select
-  event_date,
   record_count,
   delivery_count,
   location_count,
   total_allowed_amount,
-  average_allowed_amount
+  average_allowed_amount,
+  event_date
 from {{ ref('gold_daily_delivery_metrics') }}
