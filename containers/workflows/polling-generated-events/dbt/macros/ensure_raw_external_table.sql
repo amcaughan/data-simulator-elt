@@ -24,7 +24,15 @@
         `_ingested_at` string,
         `_schema_version` string,
         `_scenario_name` string,
-        `_response_row_count` bigint
+        `_response_row_count` bigint,
+        `_raw_bundle_id` string,
+        `_raw_bundle_key` string,
+        `_raw_bundle_manifest_key` string,
+        `_raw_standardized_at` string,
+        `_raw_bundle_logical_date` string,
+        `_raw_bundle_granularity` string,
+        `_raw_input_object_count` bigint,
+        `_raw_bundle_row_count` bigint
       )
       PARTITIONED BY (
         `year` string,
@@ -34,6 +42,7 @@
       STORED AS PARQUET
       LOCATION '{{ raw_location }}'
     {% endset %}
+    {% do run_query("DROP TABLE IF EXISTS " ~ raw_table) %}
     {% do run_query(create_sql) %}
     {% do run_query("MSCK REPAIR TABLE " ~ raw_table) %}
   {% endif %}

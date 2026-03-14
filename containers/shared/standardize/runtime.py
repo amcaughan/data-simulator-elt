@@ -133,6 +133,42 @@ def _normalize_rows(rows: list[dict]) -> list[dict]:
     ]
 
 
+def _annotate_output_rows(
+    output: StandardizeOutput,
+    *,
+    bundle_id: str,
+    processed_key: str,
+    manifest_key: str,
+    standardized_at: datetime,
+    input_object_count: int,
+    logical_slice: LogicalSlice | None,
+    row_count: int,
+) -> list[dict]:
+    bundle_metadata = {
+        "_raw_bundle_id": bundle_id,
+        "_raw_bundle_key": processed_key,
+        "_raw_bundle_manifest_key": manifest_key,
+        "_raw_standardized_at": standardized_at.astimezone(UTC).isoformat(),
+        "_raw_bundle_logical_date": (
+            None
+            if logical_slice is None
+            else logical_slice.logical_date.astimezone(UTC).isoformat()
+        ),
+        "_raw_bundle_granularity": (
+            "manual" if logical_slice is None else logical_slice.granularity
+        ),
+        "_raw_input_object_count": input_object_count,
+        "_raw_bundle_row_count": row_count,
+    }
+    return [
+        {
+            **row,
+            **bundle_metadata,
+        }
+        for row in output.rows
+    ]
+
+
 def _write_parquet_bytes(rows: list[dict]) -> bytes:
     table = pa.Table.from_pylist(_normalize_rows(rows))
     buffer = io.BytesIO()
@@ -329,9 +365,9 @@ def _write_processed_object(
     metadata: dict[str, str],
     row_count: int,
     body: bytes,
+    standardized_at: datetime,
     logical_slice: LogicalSlice | None = None,
 ) -> None:
-    standardized_at = datetime.now(UTC)
     s3_client.put_object(
         Bucket=config.processed_bucket_name,
         Key=processed_key,
@@ -407,26 +443,43 @@ def run_standardize(config: StandardizeConfig, s3_client) -> list[StandardizedSl
                 config=config,
                 object_name=object_name,
             )
-            body = _write_parquet_bytes(output.rows)
+            standardized_at = datetime.now(UTC)
+            annotated_rows = _annotate_output_rows(
+                output=output,
+                bundle_id=manual_run_id,
+                processed_key=processed_key,
+                manifest_key=manifest_key,
+                standardized_at=standardized_at,
+                input_object_count=len(input_objects),
+                logical_slice=None,
+                row_count=len(output.rows),
+            )
+            annotated_output = StandardizeOutput(
+                rows=annotated_rows,
+                metadata=output.metadata,
+                suggested_object_name=output.suggested_object_name,
+            )
+            body = _write_parquet_bytes(annotated_rows)
             metadata = {
                 "workflow_name": config.workflow_name,
                 "standardize_strategy": config.standardize_strategy,
                 "planning_mode": config.planning_mode,
                 "input_object_count": str(len(input_objects)),
-                "row_count": str(len(output.rows)),
-                "standardized_at": datetime.now(UTC).isoformat(),
+                "row_count": str(len(annotated_rows)),
+                "standardized_at": standardized_at.isoformat(),
                 **output.metadata,
             }
             _write_processed_object(
                 config=config,
                 s3_client=s3_client,
                 input_objects=input_objects,
-                output=output,
+                output=annotated_output,
                 processed_key=processed_key,
                 manifest_key=manifest_key,
                 metadata=metadata,
-                row_count=len(output.rows),
+                row_count=len(annotated_rows),
                 body=body,
+                standardized_at=standardized_at,
             )
             print(
                 json.dumps(
@@ -436,7 +489,7 @@ def run_standardize(config: StandardizeConfig, s3_client) -> list[StandardizedSl
                         "bucket": config.processed_bucket_name,
                         "key": processed_key,
                         "input_object_count": len(input_objects),
-                        "row_count": len(output.rows),
+                        "row_count": len(annotated_rows),
                     }
                 )
             )
@@ -445,7 +498,7 @@ def run_standardize(config: StandardizeConfig, s3_client) -> list[StandardizedSl
                     bucket_name=config.processed_bucket_name,
                     key=processed_key,
                     manifest_key=manifest_key,
-                    row_count=len(output.rows),
+                    row_count=len(annotated_rows),
                     source_object_count=len(input_objects),
                 )
             )
@@ -502,7 +555,23 @@ def run_standardize(config: StandardizeConfig, s3_client) -> list[StandardizedSl
                 logical_slice=logical_slice,
                 object_name=processed_key.rsplit("/", maxsplit=1)[-1],
             )
-            body = _write_parquet_bytes(output.rows)
+            standardized_at = datetime.now(UTC)
+            annotated_rows = _annotate_output_rows(
+                output=output,
+                bundle_id=logical_slice.run_id,
+                processed_key=processed_key,
+                manifest_key=manifest_key,
+                standardized_at=standardized_at,
+                input_object_count=len(input_objects),
+                logical_slice=logical_slice,
+                row_count=len(output.rows),
+            )
+            annotated_output = StandardizeOutput(
+                rows=annotated_rows,
+                metadata=output.metadata,
+                suggested_object_name=output.suggested_object_name,
+            )
+            body = _write_parquet_bytes(annotated_rows)
             metadata = {
                 "workflow_name": config.workflow_name,
                 "standardize_strategy": config.standardize_strategy,
@@ -510,20 +579,21 @@ def run_standardize(config: StandardizeConfig, s3_client) -> list[StandardizedSl
                 "logical_date": logical_slice.logical_date.astimezone(UTC).isoformat(),
                 "output_slice_granularity": config.output_slice_granularity,
                 "input_object_count": str(len(input_objects)),
-                "row_count": str(len(output.rows)),
-                "standardized_at": datetime.now(UTC).isoformat(),
+                "row_count": str(len(annotated_rows)),
+                "standardized_at": standardized_at.isoformat(),
                 **output.metadata,
             }
             _write_processed_object(
                 config=config,
                 s3_client=s3_client,
                 input_objects=input_objects,
-                output=output,
+                output=annotated_output,
                 processed_key=processed_key,
                 manifest_key=manifest_key,
                 metadata=metadata,
-                row_count=len(output.rows),
+                row_count=len(annotated_rows),
                 body=body,
+                standardized_at=standardized_at,
                 logical_slice=logical_slice,
             )
 
@@ -535,7 +605,7 @@ def run_standardize(config: StandardizeConfig, s3_client) -> list[StandardizedSl
                         "key": processed_key,
                         "logical_date": logical_slice.logical_date.isoformat(),
                         "input_object_count": len(input_objects),
-                        "row_count": len(output.rows),
+                        "row_count": len(annotated_rows),
                     }
                 )
             )
@@ -544,7 +614,7 @@ def run_standardize(config: StandardizeConfig, s3_client) -> list[StandardizedSl
                     bucket_name=config.processed_bucket_name,
                     key=processed_key,
                     manifest_key=manifest_key,
-                    row_count=len(output.rows),
+                    row_count=len(annotated_rows),
                     source_object_count=len(input_objects),
                 )
             )
