@@ -49,11 +49,21 @@ dependency_command() {
 }
 
 build() {
-  docker build -f "$DOCKERFILE" -t "$IMAGE_NAME" "$BUILD_CONTEXT"
+  if docker buildx version >/dev/null 2>&1; then
+    docker buildx build --load -f "$DOCKERFILE" -t "$IMAGE_NAME" "$BUILD_CONTEXT"
+  else
+    echo "docker buildx is not installed; falling back to legacy docker build" >&2
+    docker build -f "$DOCKERFILE" -t "$IMAGE_NAME" "$BUILD_CONTEXT"
+  fi
 }
 
 rebuild() {
-  docker build --no-cache -f "$DOCKERFILE" -t "$IMAGE_NAME" "$BUILD_CONTEXT"
+  if docker buildx version >/dev/null 2>&1; then
+    docker buildx build --load --no-cache -f "$DOCKERFILE" -t "$IMAGE_NAME" "$BUILD_CONTEXT"
+  else
+    echo "docker buildx is not installed; falling back to legacy docker build" >&2
+    docker build --no-cache -f "$DOCKERFILE" -t "$IMAGE_NAME" "$BUILD_CONTEXT"
+  fi
 }
 
 destroy() {
