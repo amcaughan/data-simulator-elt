@@ -9,7 +9,7 @@ BUILD_CONTEXT="$REPO_ROOT/local"
 
 usage() {
   cat <<EOF
-Usage: $0 <command>
+Usage: $0 [command] [options]
 
 Commands:
   build      Build the dev image
@@ -17,7 +17,35 @@ Commands:
   run        Start an interactive shell
   destroy    Remove the dev image
   help       Show this message
+
+Run options:
+  --install none|all
+            none:   start quickly without Python dependency installs (default)
+            all:    install shared and workflow dbt requirements
+
+Examples:
+  $0
+  $0 run --install all
+  $0 --install all
 EOF
+}
+
+dependency_command() {
+  local install_profile="${1:-none}"
+
+  case "$install_profile" in
+    none)
+      printf '%s\n' 'exec /bin/bash'
+      ;;
+    all)
+      printf '%s\n' 'shopt -s nullglob; for req in /workspace/containers/shared/*/requirements.txt /workspace/containers/workflows/*/dbt/requirements.txt; do if [[ -s "$req" ]]; then python3 -m pip install --user -r "$req"; fi; done; exec /bin/bash'
+      ;;
+    *)
+      echo "Unknown install profile: $install_profile" >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
 }
 
 build() {
@@ -33,6 +61,23 @@ destroy() {
 }
 
 run() {
+  local install_profile="none"
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --install)
+        [[ $# -ge 2 ]] || { echo "--install requires a value" >&2; exit 1; }
+        install_profile="$2"
+        shift 2
+        ;;
+      *)
+        echo "Unknown run option: $1" >&2
+        usage >&2
+        exit 1
+        ;;
+    esac
+  done
+
   if ! docker image inspect "$IMAGE_NAME" >/dev/null 2>&1; then
     build
   fi
@@ -54,7 +99,7 @@ run() {
 
   docker run "${docker_args[@]}" \
     "$IMAGE_NAME" \
-    /bin/bash -lc 'shopt -s nullglob; for req in /workspace/containers/shared/*/requirements.txt /workspace/containers/workflows/*/dbt/requirements.txt; do if [[ -s "$req" ]]; then python3 -m pip install --user -r "$req"; fi; done; exec /bin/bash'
+    /bin/bash -lc "$(dependency_command "$install_profile")"
 }
 
 if [[ $# -eq 0 ]]; then
@@ -62,13 +107,17 @@ if [[ $# -eq 0 ]]; then
   exit 0
 fi
 
-cmd="$1"
-shift || true
+if [[ "$1" == --* ]]; then
+  cmd="run"
+else
+  cmd="$1"
+  shift || true
+fi
 
 case "$cmd" in
   build) build ;;
   rebuild) rebuild ;;
-  run) run ;;
+  run) run "$@" ;;
   destroy) destroy ;;
   help|-h|--help) usage ;;
   *) usage; exit 1 ;;
