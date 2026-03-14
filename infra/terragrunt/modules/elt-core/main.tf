@@ -92,6 +92,7 @@ resource "aws_s3_bucket_policy" "athena_results" {
 
 resource "aws_athena_workgroup" "this" {
   name = "${local.project_slug}-${var.environment}"
+  force_destroy = var.force_destroy_stateful_resources
 
   configuration {
     enforce_workgroup_configuration = true

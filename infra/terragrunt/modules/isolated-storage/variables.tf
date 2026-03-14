@@ -12,6 +12,9 @@ variable "workflow_name" {
 }
 
 variable "force_destroy_buckets" {
+  # This defaults to true in this demo repo for teardown/setup ergonomics.
+  # In a real production environment, I would normally default this to false
+  # and require explicit cleanup policy decisions instead of force-destroying.
   type    = bool
   default = true
 }
