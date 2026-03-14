@@ -43,7 +43,6 @@ with raw_rows as (
     cast(_raw_bundle_row_count as bigint) as raw_bundle_row_count,
     cast(date(from_iso8601_timestamp(_logical_date)) as date) as event_date
   from {{ source('raw', 'raw_polling_generated_events') }}
-  where regexp_like("$path", '.*\\.parquet$')
 ),
 canonical_bundle_rows as (
   select raw_rows.*
