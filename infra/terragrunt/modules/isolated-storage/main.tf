@@ -2,12 +2,12 @@ data "aws_caller_identity" "current" {}
 data "aws_region" "current" {}
 
 locals {
-  project_slug = replace(var.project_name, "_", "-")
-  workflow_token = "${substr(replace(var.workflow_name, "-", ""), 0, 3)}${substr(md5(var.workflow_name), 0, 5)}"
+  workflow_slug = trimsuffix(trimprefix(replace(var.workflow_name, "_", "-"), "sample-"), "-")
+  bucket_prefix = "elt-${local.workflow_slug}-${var.environment}"
   bucket_names = {
-    landing   = "${local.project_slug}-${var.environment}-${local.workflow_token}-ldg-${data.aws_caller_identity.current.account_id}-${data.aws_region.current.region}"
-    processed = "${local.project_slug}-${var.environment}-${local.workflow_token}-prc-${data.aws_caller_identity.current.account_id}-${data.aws_region.current.region}"
-    marts     = "${local.project_slug}-${var.environment}-${local.workflow_token}-mrt-${data.aws_caller_identity.current.account_id}-${data.aws_region.current.region}"
+    landing   = coalesce(var.landing_bucket_name, "${local.bucket_prefix}-landing-${data.aws_caller_identity.current.account_id}-${data.aws_region.current.region}")
+    processed = coalesce(var.processed_bucket_name, "${local.bucket_prefix}-proc-${data.aws_caller_identity.current.account_id}-${data.aws_region.current.region}")
+    marts     = coalesce(var.marts_bucket_name, "${local.bucket_prefix}-mart-${data.aws_caller_identity.current.account_id}-${data.aws_region.current.region}")
   }
 }
 

@@ -16,6 +16,21 @@ variable "workflow_name" {
   type = string
 }
 
+variable "landing_bucket_name" {
+  type    = string
+  default = null
+}
+
+variable "processed_bucket_name" {
+  type    = string
+  default = null
+}
+
+variable "marts_bucket_name" {
+  type    = string
+  default = null
+}
+
 variable "ecs_cluster_arn" {
   type = string
 }

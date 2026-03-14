@@ -15,9 +15,12 @@ locals {
 module "storage" {
   source = "../isolated-storage"
 
-  environment   = var.environment
-  project_name  = var.project_name
-  workflow_name = var.workflow_name
+  environment           = var.environment
+  project_name          = var.project_name
+  workflow_name         = var.workflow_name
+  landing_bucket_name   = var.landing_bucket_name
+  processed_bucket_name = var.processed_bucket_name
+  marts_bucket_name     = var.marts_bucket_name
 }
 
 module "source_ingest" {
