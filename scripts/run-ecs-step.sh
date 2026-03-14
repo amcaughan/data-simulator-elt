@@ -198,4 +198,35 @@ echo "  task:    ${TASK_ARN}"
 if [[ "$WAIT_FOR_STOP" == "true" ]]; then
   echo "Waiting for task to stop..."
   aws ecs wait tasks-stopped --region "$AWS_REGION" --cluster "$CLUSTER_ARN" --tasks "$TASK_ARN"
+
+  EXIT_CODE="$(
+    aws ecs describe-tasks \
+      --region "$AWS_REGION" \
+      --cluster "$CLUSTER_ARN" \
+      --tasks "$TASK_ARN" \
+      --query "tasks[0].containers[?name=='${CONTAINER_NAME}']|[0].exitCode" \
+      --output text
+  )"
+
+  if [[ "$EXIT_CODE" != "0" ]]; then
+    STOP_REASON="$(
+      aws ecs describe-tasks \
+        --region "$AWS_REGION" \
+        --cluster "$CLUSTER_ARN" \
+        --tasks "$TASK_ARN" \
+        --query "tasks[0].stoppedReason" \
+        --output text
+    )"
+    echo "Task failed:"
+    echo "  task:         ${TASK_ARN}"
+    echo "  container:    ${CONTAINER_NAME}"
+    echo "  exit code:    ${EXIT_CODE}"
+    echo "  stop reason:  ${STOP_REASON}"
+    exit 1
+  fi
+
+  echo "Task completed successfully:"
+  echo "  task:         ${TASK_ARN}"
+  echo "  container:    ${CONTAINER_NAME}"
+  echo "  exit code:    ${EXIT_CODE}"
 fi

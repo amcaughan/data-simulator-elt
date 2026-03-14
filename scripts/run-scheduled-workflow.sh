@@ -589,9 +589,6 @@ sys.stdout.write(
 PY
   )"
 
-  local aws_region cluster_arn task_arn
-  aws_region="$(python3 -c 'import json,sys; print(json.loads(sys.stdin.read())["region"])' <<<"$cli_input")"
-  cluster_arn="$(python3 -c 'import json,sys; print(json.loads(sys.stdin.read())["cluster"])' <<<"$cli_input")"
   mapfile -t step_runner_args < <(
     CLI_INPUT="$cli_input" python3 - <<'PY'
 import json
@@ -619,28 +616,19 @@ for arg in args:
 PY
   )
 
-  if [[ "$step_name" == "dbt" || "$STEP" != "all" ]] && [[ "$WAIT_FOR_FINAL" == "true" ]]; then
+  if [[ "$STEP" == "all" && "$step_name" != "dbt" ]]; then
+    step_runner_args+=("--wait")
+  elif [[ "$WAIT_FOR_FINAL" == "true" ]]; then
     step_runner_args+=("--wait")
   fi
 
   local step_output
   step_output="$("$STEP_RUNNER" "${step_runner_args[@]}")"
-  task_arn="$(awk '/^  task:/{print $2}' <<<"$step_output")"
 
   echo "Started ${step_name} task:"
   echo "  workflow: ${WORKFLOW_NAME}"
   echo "  env:      ${ENVIRONMENT}"
   echo "$step_output" | sed 's/^/  /'
-
-  if [[ "$STEP" == "all" && "$step_name" == "source-ingest" ]]; then
-    echo "Waiting for source-ingest to finish before starting standardize..."
-    aws ecs wait tasks-stopped --region "$aws_region" --cluster "$cluster_arn" --tasks "$task_arn"
-  fi
-
-  if [[ "$STEP" == "all" && "$step_name" == "standardize" ]]; then
-    echo "Waiting for standardize to finish before starting dbt..."
-    aws ecs wait tasks-stopped --region "$aws_region" --cluster "$cluster_arn" --tasks "$task_arn"
-  fi
 }
 
 case "$STEP" in
