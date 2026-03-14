@@ -5,6 +5,7 @@ from datetime import datetime
 import hashlib
 import json
 import os
+import time
 from typing import Any
 import urllib.error
 import urllib.parse
@@ -26,6 +27,9 @@ from source_ingest.config import IngestConfig
 
 
 VALID_SEED_STRATEGIES = {"derived", "fixed", "none"}
+TRANSIENT_HTTP_STATUS_CODES = frozenset(range(500, 600))
+DEFAULT_HTTP_RETRY_ATTEMPTS = 3
+DEFAULT_HTTP_RETRY_BACKOFF_SECONDS = 1.0
 
 
 def _require_env(name: str) -> str:
@@ -325,11 +329,30 @@ class SimulatorApiAdapter(SourceAdapter):
             headers=dict(prepared_request.headers.items()),
         )
 
-        try:
-            with urllib.request.urlopen(http_request) as response:
-                return response.read(), response.headers.get_content_type()
-        except urllib.error.HTTPError as exc:
-            error_body = exc.read().decode("utf-8", errors="replace")
-            raise RuntimeError(
-                f"Simulator API request failed with HTTP {exc.code}: {error_body}"
-            ) from exc
+        last_error: RuntimeError | None = None
+        for attempt in range(1, DEFAULT_HTTP_RETRY_ATTEMPTS + 1):
+            try:
+                with urllib.request.urlopen(http_request) as response:
+                    return response.read(), response.headers.get_content_type()
+            except urllib.error.HTTPError as exc:
+                error_body = exc.read().decode("utf-8", errors="replace")
+                last_error = RuntimeError(
+                    f"Simulator API request failed with HTTP {exc.code}: {error_body}"
+                )
+                if (
+                    exc.code not in TRANSIENT_HTTP_STATUS_CODES
+                    or attempt == DEFAULT_HTTP_RETRY_ATTEMPTS
+                ):
+                    raise last_error from exc
+            except urllib.error.URLError as exc:
+                last_error = RuntimeError(
+                    f"Simulator API request failed before receiving a response: {exc.reason}"
+                )
+                if attempt == DEFAULT_HTTP_RETRY_ATTEMPTS:
+                    raise last_error from exc
+
+            time.sleep(DEFAULT_HTTP_RETRY_BACKOFF_SECONDS * (2 ** (attempt - 1)))
+
+        if last_error is not None:
+            raise last_error
+        raise RuntimeError("Simulator API request failed before issuing an HTTP request")

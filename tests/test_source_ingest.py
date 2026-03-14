@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+import io
 import json
 from pathlib import Path
 import sys
+from types import ModuleType
 import unittest
 from unittest.mock import patch
+import urllib.error
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "containers" / "shared"))
 
@@ -137,6 +140,25 @@ class FakeS3Client:
                 return [{"Contents": contents}]
 
         return Paginator()
+
+
+class FakeHttpResponse:
+    def __init__(self, body: bytes, content_type: str = "application/json"):
+        self._body = body
+        self.headers = self
+        self._content_type = content_type
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+    def read(self):
+        return self._body
+
+    def get_content_type(self):
+        return self._content_type
 
 
 class SourceIngestTests(unittest.TestCase):
@@ -341,6 +363,99 @@ class SourceIngestTests(unittest.TestCase):
             adapter.runtime_config.source_base_url,
             "https://example.execute-api.us-east-2.amazonaws.com/dev",
         )
+
+    def test_simulator_adapter_retries_transient_http_errors(self):
+        adapter = SimulatorApiAdapter(
+            workflow_name="polling-generated-events",
+            aws_region="us-east-2",
+            runtime_config=type("RuntimeConfig", (), {"source_base_url": "https://example.com"})(),
+            adapter_config=SimulatorApiConfig.from_dict(
+                {
+                    "preset_id": "transaction_benchmark",
+                    "row_count": 2,
+                    "seed_strategy": "derived",
+                    "request_overrides": {},
+                }
+            ),
+        )
+        http_error = urllib.error.HTTPError(
+            url="https://example.com/v1/presets/transaction_benchmark/generate",
+            code=500,
+            msg="Internal Server Error",
+            hdrs=None,
+            fp=io.BytesIO(b'{"message":"Internal server error"}'),
+        )
+        success_response = FakeHttpResponse(
+            body=b'{"row_count": 2, "rows": []}',
+            content_type="application/json",
+        )
+        fake_botocore = ModuleType("botocore")
+        fake_botocore_auth = ModuleType("botocore.auth")
+        fake_botocore_awsrequest = ModuleType("botocore.awsrequest")
+        fake_botocore_session = ModuleType("botocore.session")
+
+        class FakeSigV4Auth:
+            def __init__(self, credentials, service_name, region_name):
+                self.credentials = credentials
+                self.service_name = service_name
+                self.region_name = region_name
+
+            def add_auth(self, request):
+                return None
+
+        class FakeAWSRequest:
+            def __init__(self, method, url, data, headers):
+                self.method = method
+                self.url = url
+                self.data = data
+                self.headers = headers
+
+            def prepare(self):
+                return type("PreparedRequest", (), {"headers": self.headers})()
+
+        class FakeCredentials:
+            def get_frozen_credentials(self):
+                return object()
+
+        class FakeSession:
+            def get_credentials(self):
+                return FakeCredentials()
+
+        fake_botocore_auth.SigV4Auth = FakeSigV4Auth
+        fake_botocore_awsrequest.AWSRequest = FakeAWSRequest
+        fake_botocore_session.get_session = lambda: FakeSession()
+        fake_botocore.auth = fake_botocore_auth
+        fake_botocore.awsrequest = fake_botocore_awsrequest
+        fake_botocore.session = fake_botocore_session
+
+        with patch(
+            "source_ingest.adapters.simulator_api.urllib.request.urlopen",
+            side_effect=[http_error, success_response],
+        ) as mock_urlopen, patch(
+            "source_ingest.adapters.simulator_api.time.sleep"
+        ) as mock_sleep, patch.dict(
+            sys.modules,
+            {
+                "botocore": fake_botocore,
+                "botocore.auth": fake_botocore_auth,
+                "botocore.awsrequest": fake_botocore_awsrequest,
+                "botocore.session": fake_botocore_session,
+            },
+        ):
+            output = adapter._fetch_slice(
+                SliceFetchRequest(
+                    slice=RequestedSlice(
+                        logical_date=datetime(2026, 3, 1, 0, 0, tzinfo=UTC),
+                        slice_start=datetime(2026, 3, 1, 0, 0, tzinfo=UTC),
+                        slice_end=datetime(2026, 3, 1, 0, 59, 59, tzinfo=UTC),
+                        granularity="hour",
+                    )
+                )
+            )
+
+        self.assertEqual(mock_urlopen.call_count, 2)
+        mock_sleep.assert_called_once()
+        self.assertEqual(output.outputs[0].content_type, "application/json")
 
     def test_map_fetch_outputs_matches_multi_slice_results_to_storage_targets(self):
         from common.slices import SliceWindowConfig
