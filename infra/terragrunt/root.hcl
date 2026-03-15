@@ -1,11 +1,13 @@
 locals {
-  stack_path_parts = split("/", path_relative_to_include())
-  environment_name = length(local.stack_path_parts) > 1 ? local.stack_path_parts[1] : ""
-  stack_name       = length(local.stack_path_parts) > 2 ? local.stack_path_parts[2] : ""
-  cleanup_tags = local.environment_name == "dev" ? {
-    # Dev stacks are disposable in this sandbox; favor automatic cost cleanup over persistence.
+  stack_path_parts     = split("/", path_relative_to_include())
+  environment_name     = length(local.stack_path_parts) > 1 ? local.stack_path_parts[1] : ""
+  stack_name           = length(local.stack_path_parts) > 2 ? local.stack_path_parts[2] : ""
+  cleanup_tags_enabled = local.environment_name == "dev"
+  cleanup_tags = local.cleanup_tags_enabled ? {
+    # Weekly cleanup keeps this sandbox affordable. In a real production system,
+    # these resources would usually stay up until intentionally retired.
     auto_cleanup     = "true"
-    cleanup_schedule = "daily"
+    cleanup_schedule = "weekly"
     cleanup_ttl      = "7d"
     created_on       = run_cmd("date", "-u", "+%Y-%m-%d")
   } : {}
