@@ -18,8 +18,16 @@ output "stream_emitter_job_name" {
   value = module.stream_emitter.job_name
 }
 
+output "stream_emitter_task_definition_arn" {
+  value = module.stream_emitter.task_definition_arn
+}
+
 output "dbt_job_name" {
   value = module.dbt.job_name
+}
+
+output "dbt_task_definition_arn" {
+  value = module.dbt.task_definition_arn
 }
 
 output "stream_emitter_ecr_repository_url" {

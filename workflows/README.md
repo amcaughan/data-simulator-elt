@@ -9,6 +9,7 @@ Each workflow should explain:
 Each workflow may also own:
 - a workflow-local dbt runtime under `containers/workflows/<workflow>/dbt/`
 - a workflow-specific dbt image
+- a workflow-local simulated upstream runtime when the source itself is part of the demo
 
 That is intentional. Shared source-ingest and standardize runtimes live under
 `containers/shared/`, but transformation logic belongs to the workflow that
