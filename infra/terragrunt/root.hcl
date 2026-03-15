@@ -26,12 +26,17 @@ generate "provider" {
   if_exists = "overwrite_terragrunt"
 
   contents = <<EOF
+variable "extra_default_tags" {
+  type    = map(string)
+  default = {}
+}
+
 provider "aws" {
   region  = "${local.aws_region}"
   profile = "${local.aws_profile}"
 
   default_tags {
-    tags = ${jsonencode(local.common_tags)}
+    tags = merge(${jsonencode(local.common_tags)}, var.extra_default_tags)
   }
 }
 EOF
