@@ -64,7 +64,7 @@ variable "emission_rate_per_minute" {
 
 variable "stream_schedule_expression" {
   type    = string
-  default = "rate(1 minute)"
+  default = null
 }
 
 variable "dbt_schedule_expression" {
@@ -76,6 +76,6 @@ variable "dbt_source_dir" {
   type = string
 }
 
-variable "stream_emitter_container_image" {
+variable "stream_emitter_source_dir" {
   type = string
 }

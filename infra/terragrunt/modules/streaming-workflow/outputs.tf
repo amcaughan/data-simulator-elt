@@ -22,6 +22,10 @@ output "dbt_job_name" {
   value = module.dbt.job_name
 }
 
+output "stream_emitter_ecr_repository_url" {
+  value = aws_ecr_repository.stream_emitter.repository_url
+}
+
 output "dbt_ecr_repository_url" {
   value = aws_ecr_repository.dbt.repository_url
 }
@@ -35,7 +39,7 @@ output "firehose_delivery_stream_name" {
 }
 
 output "stream_schedule_name" {
-  value = aws_scheduler_schedule.stream_emitter.name
+  value = var.stream_schedule_expression == null ? null : aws_scheduler_schedule.stream_emitter[0].name
 }
 
 output "dbt_schedule_name" {

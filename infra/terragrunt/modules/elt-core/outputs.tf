@@ -42,10 +42,6 @@ output "standardize_image_uri" {
   value = var.publish_runtime_images ? module.standardize_image[0].image_uri : null
 }
 
-output "stream_emitter_ecr_repository_url" {
-  value = aws_ecr_repository.this["stream_emitter"].repository_url
-}
-
 output "network_vpc_id" {
   value     = data.aws_ssm_parameter.network_vpc_id.value
   sensitive = true

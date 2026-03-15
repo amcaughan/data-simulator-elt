@@ -1,13 +1,15 @@
 locals {
-  project_slug        = replace(var.project_name, "_", "-")
-  workflow_token      = "${substr(replace(var.workflow_name, "-", ""), 0, 3)}${substr(md5(var.workflow_name), 0, 5)}"
-  stream_name         = "${local.project_slug}-${var.environment}-${local.workflow_token}"
-  firehose_name       = "${local.project_slug}-${var.environment}-${local.workflow_token}-prc"
-  firehose_log_group  = "/aws/kinesisfirehose/${local.firehose_name}"
-  dbt_repo_name       = "${local.project_slug}-${var.environment}-${local.workflow_token}-dbt"
-  scheduler_name      = "${local.project_slug}-${var.environment}-${local.workflow_token}-sch"
+  project_slug         = replace(var.project_name, "_", "-")
+  workflow_token       = "${substr(replace(var.workflow_name, "-", ""), 0, 3)}${substr(md5(var.workflow_name), 0, 5)}"
+  stream_name          = "${local.project_slug}-${var.environment}-${local.workflow_token}"
+  firehose_name        = "${local.project_slug}-${var.environment}-${local.workflow_token}-prc"
+  firehose_log_group   = "/aws/kinesisfirehose/${local.firehose_name}"
+  stream_emitter_repo_name = "${local.project_slug}-${var.environment}-${local.workflow_token}-sem"
+  dbt_repo_name        = "${local.project_slug}-${var.environment}-${local.workflow_token}-dbt"
+  scheduler_name       = "${local.project_slug}-${var.environment}-${local.workflow_token}-sch"
   stream_schedule_name = "${local.project_slug}-${var.environment}-${local.workflow_token}-sem"
-  dbt_schedule_name   = "${local.project_slug}-${var.environment}-${local.workflow_token}-dbt"
+  dbt_schedule_name    = "${local.project_slug}-${var.environment}-${local.workflow_token}-dbt"
+  scheduler_enabled    = var.stream_schedule_expression != null || var.dbt_schedule_expression != null
 }
 
 module "storage" {
@@ -19,6 +21,58 @@ module "storage" {
   landing_bucket_name   = var.landing_bucket_name
   processed_bucket_name = var.processed_bucket_name
   marts_bucket_name     = var.marts_bucket_name
+}
+
+resource "aws_ecr_repository" "stream_emitter" {
+  name                 = local.stream_emitter_repo_name
+  image_tag_mutability = "MUTABLE"
+  force_delete         = true
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+}
+
+resource "aws_ecr_lifecycle_policy" "stream_emitter" {
+  repository = aws_ecr_repository.stream_emitter.name
+  policy = jsonencode({
+    rules = [
+      {
+        rulePriority = 1
+        description  = "Keep only the newest tagged stream emitter image"
+        selection = {
+          tagStatus     = "tagged"
+          tagPrefixList = ["sha-"]
+          countType     = "imageCountMoreThan"
+          countNumber   = 1
+        }
+        action = {
+          type = "expire"
+        }
+      },
+      {
+        rulePriority = 2
+        description  = "Expire untagged images"
+        selection = {
+          tagStatus   = "untagged"
+          countType   = "imageCountMoreThan"
+          countNumber = 1
+        }
+        action = {
+          type = "expire"
+        }
+      },
+    ]
+  })
+}
+
+module "stream_emitter_image" {
+  source = "../container-image"
+
+  aws_region         = var.aws_region
+  repository_url     = aws_ecr_repository.stream_emitter.repository_url
+  runtime_source_dir = var.stream_emitter_source_dir
+  build_context_dir  = var.stream_emitter_source_dir
 }
 
 resource "aws_kinesis_stream" "this" {
@@ -146,7 +200,7 @@ module "stream_emitter" {
   emission_rate_per_minute       = var.emission_rate_per_minute
   stream_name                    = aws_kinesis_stream.this.name
   stream_arn                     = aws_kinesis_stream.this.arn
-  container_image                = var.stream_emitter_container_image
+  container_image                = module.stream_emitter_image.image_uri
 }
 
 resource "aws_ecr_repository" "dbt" {
@@ -229,6 +283,8 @@ data "aws_iam_policy_document" "scheduler_assume_role" {
 }
 
 resource "aws_iam_role" "scheduler" {
+  count = local.scheduler_enabled ? 1 : 0
+
   name               = local.scheduler_name
   assume_role_policy = data.aws_iam_policy_document.scheduler_assume_role.json
 }
@@ -268,12 +324,16 @@ data "aws_iam_policy_document" "scheduler" {
 }
 
 resource "aws_iam_role_policy" "scheduler" {
+  count = local.scheduler_enabled ? 1 : 0
+
   name   = local.scheduler_name
-  role   = aws_iam_role.scheduler.id
+  role   = aws_iam_role.scheduler[0].id
   policy = data.aws_iam_policy_document.scheduler.json
 }
 
 resource "aws_scheduler_schedule" "stream_emitter" {
+  count = var.stream_schedule_expression == null ? 0 : 1
+
   name                = local.stream_schedule_name
   schedule_expression = var.stream_schedule_expression
   state               = "ENABLED"
@@ -284,7 +344,7 @@ resource "aws_scheduler_schedule" "stream_emitter" {
 
   target {
     arn      = var.ecs_cluster_arn
-    role_arn = aws_iam_role.scheduler.arn
+    role_arn = aws_iam_role.scheduler[0].arn
 
     ecs_parameters {
       task_definition_arn = module.stream_emitter.task_definition_arn
@@ -314,7 +374,7 @@ resource "aws_scheduler_schedule" "dbt" {
 
   target {
     arn      = var.ecs_cluster_arn
-    role_arn = aws_iam_role.scheduler.arn
+    role_arn = aws_iam_role.scheduler[0].arn
 
     ecs_parameters {
       task_definition_arn = module.dbt.task_definition_arn
