@@ -23,7 +23,7 @@ set_demo_defaults() {
     sample-stream-events-01)
       DEMO_RUNNER_KIND="streaming"
       DEMO_QUERY_TABLE="analytics_sensor_events"
-      DEMO_STREAM_EMITTER_RUNS="3"
+      DEMO_STREAM_EMITTER_RUNS="5"
       ;;
     *)
       echo "No demo defaults are defined for workflow: ${workflow_name}" >&2
