@@ -155,6 +155,36 @@ Manual ECS tasks started by this helper are tagged for daily janitor cleanup as 
 safety net. They should still stop on their own when the container command
 finishes.
 
+## Demo Workflow Smoke Runs
+
+For a full spin-up demo of a workflow, use:
+
+```bash
+./scripts/demo-workflow.sh --workflow sample-api-polling-01
+```
+
+or:
+
+```bash
+./scripts/demo-workflow.sh --workflow sample-file-delivery-01
+```
+
+This helper will:
+- apply `core`
+- apply the requested workflow stack
+- print the landing, processed, marts, and Athena output locations
+- run a small sample backfill window
+- wait for the workflow to finish
+- run one Athena sanity query and print the results
+
+You can override the final query with:
+
+```bash
+./scripts/demo-workflow.sh \
+  --workflow sample-file-delivery-01 \
+  --query-sql "select location_code, count(*) from silver_delivery_records group by 1 order by 1"
+```
+
 ## License
 
 MIT
