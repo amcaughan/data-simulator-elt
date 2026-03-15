@@ -17,6 +17,28 @@ This repository manages:
 - landing-to-processed standardization runtimes
 - workflow-owned dbt transformation layers over processed data
 
+## Start Here
+
+If you want the fastest proof that the repo works end to end, use one of the
+demo runners:
+
+```bash
+./scripts/demo-workflow.sh --workflow sample-api-polling-01
+./scripts/demo-workflow.sh --workflow sample-file-delivery-01
+./scripts/demo-workflow.sh --workflow sample-stream-events-01
+```
+
+Those demos:
+- apply `core`
+- apply the requested workflow stack
+- run a small sample load
+- wait for the workflow to finish
+- run an Athena sanity query and print the result
+
+The exact sample load depends on the workflow:
+- scheduled workflows run a small time-window backfill
+- the streaming workflow runs a few one-off emitter tasks and then materializes dbt
+
 ## Platform shape
 
 The intended model is:
@@ -193,7 +215,7 @@ This helper will:
 - apply `core`
 - apply the requested workflow stack
 - print the landing, processed, marts, and Athena output locations
-- run a small sample backfill window
+- run a small sample workload for that workflow
 - wait for the workflow to finish
 - run one Athena sanity query and print the results
 

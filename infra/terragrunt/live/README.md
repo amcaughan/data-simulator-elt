@@ -9,7 +9,7 @@ Each environment is split into:
 
 Current workflow families:
 - scheduled batch-style ingestion
-- stream-emitter style ingestion
+- streaming ingestion with a workflow-owned simulated upstream producer
 
 Each workflow stack is expected to compose:
 - isolated storage
@@ -17,6 +17,10 @@ Each workflow stack is expected to compose:
 - standardize
 - optionally dbt
 - workflow-specific scheduling or stream resources
+
+For the streaming sample, the schedules may be intentionally `null` so the
+stack can be applied without constantly emitting demo data. One-off runs can
+still be launched with `scripts/run-streaming-workflow.sh`.
 
 These stacks assume the shared network layer eventually provides the private
 service endpoints needed for ECS task startup and logging.

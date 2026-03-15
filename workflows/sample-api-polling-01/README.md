@@ -7,6 +7,7 @@ Intent:
 - build workflow-local dbt bronze, silver, gold, and mart tables from `processed/raw`
 
 This workflow owns its dbt project under `containers/workflows/sample-api-polling-01/dbt/`.
+It currently uses the simulator API's `transaction_benchmark` preset.
 
 Manual examples:
 
@@ -32,6 +33,7 @@ backfill means three days of hourly slices rather than three daily pulls.
 The workflow-local dbt image now expects `standardize` to have already produced
 raw parquet under `processed/raw`. It bootstraps an Athena external table
 over that prefix, then materializes:
+- bronze canonical raw-bundle selection and canonical event rows
 - silver transaction and answer-key tables
 - gold row-level and daily aggregate tables
 - marts for analytics, model evaluation, and management reporting

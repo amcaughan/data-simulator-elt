@@ -10,7 +10,7 @@ The split is:
 - `shared/`
   shared platform runtimes reused across workflows
 - `workflows/`
-  workflow-owned runtime sources, currently workflow-specific dbt projects
+  workflow-owned runtime sources such as dbt projects and simulated upstream producers
 
 Shared runtimes include:
 - `source_ingest/`

@@ -16,3 +16,20 @@ This workflow owns:
 The current sample uses the simulator API's `iot_sensor_benchmark` preset in
 `/sample` mode, pushes newline-delimited JSON events through Kinesis and
 Firehose, and then builds queryable Athena marts from the landed stream files.
+
+Manual examples:
+
+```bash
+./scripts/run-streaming-workflow.sh \
+  --workflow sample-stream-events-01 \
+  --step all \
+  --emitter-runs 3 \
+  --wait
+```
+
+```bash
+./scripts/run-streaming-workflow.sh \
+  --workflow sample-stream-events-01 \
+  --step dbt \
+  --wait
+```
