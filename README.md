@@ -49,6 +49,7 @@ The shared core is expected to own:
 Workflows are expected to own:
 - their isolated storage
 - their schedules or stream plumbing
+- any workflow-local simulated upstream producer that exists only for the demo
 - their workflow-local dbt project source under `containers/workflows/<workflow>/dbt/`
 - their workflow-specific dbt image publishing
 
@@ -155,6 +156,19 @@ Manual ECS tasks started by this helper are tagged for daily janitor cleanup as 
 safety net. They should still stop on their own when the container command
 finishes.
 
+For the stream-oriented sample, use:
+
+```bash
+./scripts/run-streaming-workflow.sh \
+  --workflow sample-stream-events-01 \
+  --step all \
+  --emitter-runs 3 \
+  --wait
+```
+
+That helper runs a few one-off emitter tasks, waits for Firehose to flush, then
+launches the workflow-local dbt task.
+
 ## Demo Workflow Smoke Runs
 
 For a full spin-up demo of a workflow, use:
@@ -167,6 +181,12 @@ or:
 
 ```bash
 ./scripts/demo-workflow.sh --workflow sample-file-delivery-01
+```
+
+or:
+
+```bash
+./scripts/demo-workflow.sh --workflow sample-stream-events-01
 ```
 
 This helper will:

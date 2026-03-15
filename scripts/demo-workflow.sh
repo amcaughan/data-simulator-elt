@@ -19,6 +19,7 @@ Options:
   --query-sql SQL              Full Athena query override.
   --slice-range-start-at ISO   Override the workflow demo start timestamp.
   --slice-range-end-at ISO     Override the workflow demo end timestamp.
+  --stream-emitter-runs N      Override the stream demo emitter run count.
   --skip-core-apply            Skip terragrunt apply for core.
   --skip-workflow-apply        Skip terragrunt apply for the workflow.
   --help                       Show this message.
@@ -37,6 +38,7 @@ QUERY_TABLE=""
 QUERY_SQL=""
 SLICE_RANGE_START_AT=""
 SLICE_RANGE_END_AT=""
+STREAM_EMITTER_RUNS=""
 SKIP_CORE_APPLY="false"
 SKIP_WORKFLOW_APPLY="false"
 
@@ -64,6 +66,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --slice-range-end-at)
       SLICE_RANGE_END_AT="${2:-}"
+      shift 2
+      ;;
+    --stream-emitter-runs)
+      STREAM_EMITTER_RUNS="${2:-}"
       shift 2
       ;;
     --skip-core-apply)
@@ -102,6 +108,9 @@ if [[ -z "$SLICE_RANGE_END_AT" ]]; then
 fi
 if [[ -z "$QUERY_TABLE" ]]; then
   QUERY_TABLE="$DEMO_QUERY_TABLE"
+fi
+if [[ -z "$STREAM_EMITTER_RUNS" ]]; then
+  STREAM_EMITTER_RUNS="$DEMO_STREAM_EMITTER_RUNS"
 fi
 
 if [[ -z "$QUERY_SQL" && -z "$QUERY_TABLE" ]]; then
@@ -211,15 +220,25 @@ echo "  database:  ${GLUE_DATABASE_NAME}"
 echo "  workgroup: ${ATHENA_WORKGROUP_NAME}"
 
 echo
-echo "Running sample workflow slice window..."
-"${REPO_ROOT}/scripts/run-scheduled-workflow.sh" \
-  --workflow "$WORKFLOW_NAME" \
-  --env "$ENVIRONMENT" \
-  --step all \
-  --slice-selector-mode range \
-  --slice-range-start-at "$SLICE_RANGE_START_AT" \
-  --slice-range-end-at "$SLICE_RANGE_END_AT" \
-  --wait
+if [[ "${DEMO_RUNNER_KIND}" == "streaming" ]]; then
+  echo "Running sample streaming workflow..."
+  "${REPO_ROOT}/scripts/run-streaming-workflow.sh" \
+    --workflow "$WORKFLOW_NAME" \
+    --env "$ENVIRONMENT" \
+    --step all \
+    --emitter-runs "$STREAM_EMITTER_RUNS" \
+    --wait
+else
+  echo "Running sample workflow slice window..."
+  "${REPO_ROOT}/scripts/run-scheduled-workflow.sh" \
+    --workflow "$WORKFLOW_NAME" \
+    --env "$ENVIRONMENT" \
+    --step all \
+    --slice-selector-mode range \
+    --slice-range-start-at "$SLICE_RANGE_START_AT" \
+    --slice-range-end-at "$SLICE_RANGE_END_AT" \
+    --wait
+fi
 
 if [[ -n "$QUERY_SQL" ]]; then
   FINAL_QUERY_SQL="$QUERY_SQL"

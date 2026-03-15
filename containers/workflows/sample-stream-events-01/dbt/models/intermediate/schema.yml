@@ -1,0 +1,12 @@
+version: 2
+
+models:
+  - name: int_sensor_events
+    columns:
+      - name: emitter_event_id
+        tests:
+          - unique
+          - not_null
+      - name: device_id
+        tests:
+          - not_null

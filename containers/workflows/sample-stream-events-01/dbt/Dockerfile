@@ -4,8 +4,10 @@ WORKDIR /app
 
 COPY requirements.txt /tmp/requirements.txt
 
-RUN if [ -s /tmp/requirements.txt ]; then python -m pip install --no-cache-dir -r /tmp/requirements.txt; fi
+RUN python -m pip install --no-cache-dir -r /tmp/requirements.txt
 
 COPY . /app/dbt
 
-ENTRYPOINT ["python", "-c", "print('sample-stream-events-01 dbt placeholder')"]
+RUN chmod +x /app/dbt/run-dbt.sh
+
+ENTRYPOINT ["/app/dbt/run-dbt.sh"]

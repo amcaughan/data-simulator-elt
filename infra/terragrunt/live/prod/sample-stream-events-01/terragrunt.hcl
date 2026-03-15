@@ -34,6 +34,7 @@ inputs = {
   simulator_api_url_ssm_param_name = "/services/data-simulator-api/prod/private_api_invoke_url"
   preset_id                        = "iot_sensor_benchmark"
   emission_rate_per_minute         = 60
+  # Keep the demo stream quiet until we intentionally run it by hand.
   stream_schedule_expression       = null
   dbt_schedule_expression          = null
   dbt_source_dir                   = "${get_repo_root()}/containers/workflows/sample-stream-events-01/dbt"

@@ -1,0 +1,29 @@
+version: 2
+
+models:
+  - name: analytics_sensor_events
+    columns:
+      - name: emitter_event_id
+        tests:
+          - unique
+          - not_null
+  - name: analytics_site_daily_metrics
+    columns:
+      - name: event_date
+        tests:
+          - not_null
+      - name: site_id
+        tests:
+          - not_null
+  - name: analytics_device_latest_status
+    columns:
+      - name: device_id
+        tests:
+          - unique
+          - not_null
+  - name: management_stream_health_summary
+    columns:
+      - name: event_date
+        tests:
+          - unique
+          - not_null

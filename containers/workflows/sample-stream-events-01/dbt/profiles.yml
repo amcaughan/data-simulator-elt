@@ -1,0 +1,13 @@
+sample_stream_events_01:
+  target: ecs
+  outputs:
+    ecs:
+      type: athena
+      database: awsdatacatalog
+      schema: "{{ env_var('GLUE_DATABASE_NAME') }}"
+      s3_staging_dir: "s3://{{ env_var('ATHENA_RESULTS_BUCKET_NAME') }}/query-results/"
+      s3_data_dir: "s3://{{ env_var('PROCESSED_BUCKET_NAME') }}/"
+      s3_data_naming: schema_table
+      region_name: "{{ env_var('AWS_REGION') }}"
+      work_group: "{{ env_var('ATHENA_WORKGROUP_NAME') }}"
+      threads: 4

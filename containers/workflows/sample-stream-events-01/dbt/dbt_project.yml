@@ -1,0 +1,24 @@
+name: sample_stream_events_01
+version: "1.0.0"
+config-version: 2
+
+profile: sample_stream_events_01
+
+model-paths:
+  - models
+
+macro-paths:
+  - macros
+
+clean-targets:
+  - target
+  - dbt_packages
+
+on-run-start:
+  - "{{ ensure_stream_external_table() }}"
+
+models:
+  sample_stream_events_01:
+    +materialized: table
+    +format: parquet
+    +table_type: hive

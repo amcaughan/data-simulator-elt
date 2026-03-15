@@ -1,0 +1,11 @@
+version: 2
+
+models:
+  - name: stg_sensor_events
+    columns:
+      - name: emitter_event_id
+        tests:
+          - not_null
+      - name: emitted_at
+        tests:
+          - not_null

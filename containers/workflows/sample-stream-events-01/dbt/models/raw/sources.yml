@@ -1,0 +1,8 @@
+version: 2
+
+sources:
+  - name: stream_raw
+    schema: "{{ env_var('GLUE_DATABASE_NAME') }}"
+    tables:
+      - name: raw_sample_stream_events_01
+        description: Raw newline-delimited stream events landed by Firehose.
