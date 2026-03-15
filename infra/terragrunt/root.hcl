@@ -1,12 +1,27 @@
 locals {
+  stack_path_parts = split("/", path_relative_to_include())
+  environment_name = length(local.stack_path_parts) > 1 ? local.stack_path_parts[1] : ""
+  stack_name       = length(local.stack_path_parts) > 2 ? local.stack_path_parts[2] : ""
+  cleanup_tags = local.environment_name == "dev" ? {
+    # Dev stacks are disposable in this sandbox; favor automatic cost cleanup over persistence.
+    auto_cleanup     = "true"
+    cleanup_schedule = "daily"
+    cleanup_ttl      = "7d"
+    created_on       = run_cmd("date", "-u", "+%Y-%m-%d")
+  } : {}
   aws_region  = "us-east-2"
   aws_profile = "default"
 
-  common_tags = {
-    Project   = "data-simulator-elt"
-    Owner     = "amcaughan"
-    ManagedBy = "terragrunt"
-  }
+  common_tags = merge(
+    {
+      Project     = "data-simulator-elt"
+      Owner       = "amcaughan"
+      ManagedBy   = "terragrunt"
+      Environment = local.environment_name
+      Stack       = local.stack_name
+    },
+    local.cleanup_tags,
+  )
 }
 
 remote_state {
