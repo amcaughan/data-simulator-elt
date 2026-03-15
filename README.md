@@ -17,6 +17,17 @@ This repository manages:
 - landing-to-processed standardization runtimes
 - workflow-owned dbt transformation layers over processed data
 
+This repo is meant to stand on its own as a small ELT platform demo. Read on
+its own, it shows the kind of reusable ingestion and transformation framework a
+data ingestion or processing company might build when spinning up scheduled or
+stream-oriented pipelines for new clients or datasets on a regular basis.
+
+It is also one part of a larger multi-repo demo system:
+- `aws_infra` provides the shared AWS account and network baseline
+- `data-simulator-api` provides the private source system used by the samples here
+- a separate dashboard repo is intended to sit downstream and visualize the
+  marts produced by this repository
+
 ## Start Here
 
 If you want the fastest proof that the repo works end to end, use one of the
