@@ -7,6 +7,7 @@ locals {
   core_release_manifest          = fileexists(local.core_release_manifest_path) ? jsondecode(file(local.core_release_manifest_path)) : {}
   workflow_release_manifest_path = "${get_repo_root()}/build/releases/dev/sample-file-delivery-01.json"
   workflow_release_manifest      = fileexists(local.workflow_release_manifest_path) ? jsondecode(file(local.workflow_release_manifest_path)) : {}
+  storage_bucket_name            = "elt-file-delivery-dev-demo-${get_aws_account_id()}-us-east-2"
 }
 
 dependency "core" {
@@ -43,9 +44,18 @@ inputs = {
   project_name  = "data-simulator-elt"
   workflow_name = "sample-file-delivery-01"
   storage_locations = {
-    ingest  = {}
-    process = {}
-    surface = {}
+    ingest = {
+      bucket_name = local.storage_bucket_name
+      prefix      = "ingest"
+    }
+    process = {
+      bucket_name = local.storage_bucket_name
+      prefix      = "process"
+    }
+    surface = {
+      bucket_name = local.storage_bucket_name
+      prefix      = "surface"
+    }
   }
   ecs_cluster_arn                 = dependency.core.outputs.ecs_cluster_arn
   network_private_subnet_ids      = dependency.core.outputs.network_private_subnet_ids
