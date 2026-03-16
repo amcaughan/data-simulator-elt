@@ -22,14 +22,14 @@ terraform {
 }
 
 inputs = {
-  environment                      = "dev"
+  environment = "dev"
   extra_default_tags = {
     # Weekly cleanup keeps this sandbox affordable. In a real production system,
     # these resources would usually stay up until intentionally retired.
     auto_cleanup     = "true"
     cleanup_schedule = "weekly"
     # Intentional here: the janitor treats apply time as "last touched" time.
-    created_on       = run_cmd("date", "-u", "+%Y-%m-%d")
+    created_on = run_cmd("date", "-u", "+%Y-%m-%d")
   }
   project_name                     = "data-simulator-elt"
   workflow_name                    = "sample-stream-events-01"
@@ -43,8 +43,8 @@ inputs = {
   preset_id                        = "iot_sensor_benchmark"
   emission_rate_per_minute         = 60
   # Keep the demo stream quiet until we intentionally run it by hand.
-  stream_schedule_expression       = null
-  dbt_schedule_expression          = null
-  dbt_source_dir                   = "${get_repo_root()}/containers/workflows/sample-stream-events-01/dbt"
-  stream_emitter_source_dir        = "${get_repo_root()}/containers/workflows/sample-stream-events-01/stream_emitter"
+  stream_schedule_expression = null
+  dbt_schedule_expression    = null
+  dbt_source_dir             = "${get_repo_root()}/containers/workflows/sample-stream-events-01/dbt"
+  stream_emitter_source_dir  = "${get_repo_root()}/containers/workflows/sample-stream-events-01/stream_emitter"
 }

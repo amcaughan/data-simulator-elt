@@ -1,15 +1,15 @@
 locals {
-  project_slug         = replace(var.project_name, "_", "-")
-  workflow_token       = "${substr(replace(var.workflow_name, "-", ""), 0, 3)}${substr(md5(var.workflow_name), 0, 5)}"
-  stream_name          = "${local.project_slug}-${var.environment}-${local.workflow_token}"
-  firehose_name        = "${local.project_slug}-${var.environment}-${local.workflow_token}-prc"
-  firehose_log_group   = "/aws/kinesisfirehose/${local.firehose_name}"
+  project_slug             = replace(var.project_name, "_", "-")
+  workflow_token           = "${substr(replace(var.workflow_name, "-", ""), 0, 3)}${substr(md5(var.workflow_name), 0, 5)}"
+  stream_name              = "${local.project_slug}-${var.environment}-${local.workflow_token}"
+  firehose_name            = "${local.project_slug}-${var.environment}-${local.workflow_token}-prc"
+  firehose_log_group       = "/aws/kinesisfirehose/${local.firehose_name}"
   stream_emitter_repo_name = "${local.project_slug}-${var.environment}-${local.workflow_token}-sem"
-  dbt_repo_name        = "${local.project_slug}-${var.environment}-${local.workflow_token}-dbt"
-  scheduler_name       = "${local.project_slug}-${var.environment}-${local.workflow_token}-sch"
-  stream_schedule_name = "${local.project_slug}-${var.environment}-${local.workflow_token}-sem"
-  dbt_schedule_name    = "${local.project_slug}-${var.environment}-${local.workflow_token}-dbt"
-  scheduler_enabled    = var.stream_schedule_expression != null || var.dbt_schedule_expression != null
+  dbt_repo_name            = "${local.project_slug}-${var.environment}-${local.workflow_token}-dbt"
+  scheduler_name           = "${local.project_slug}-${var.environment}-${local.workflow_token}-sch"
+  stream_schedule_name     = "${local.project_slug}-${var.environment}-${local.workflow_token}-sem"
+  dbt_schedule_name        = "${local.project_slug}-${var.environment}-${local.workflow_token}-dbt"
+  scheduler_enabled        = var.stream_schedule_expression != null || var.dbt_schedule_expression != null
 }
 
 module "storage" {
@@ -175,13 +175,13 @@ resource "aws_kinesis_firehose_delivery_stream" "this" {
   }
 
   extended_s3_configuration {
-    role_arn           = aws_iam_role.firehose.arn
-    bucket_arn         = "arn:aws:s3:::${module.storage.processed_bucket_name}"
-    prefix             = "events/year=!{timestamp:yyyy}/month=!{timestamp:MM}/day=!{timestamp:dd}/"
+    role_arn            = aws_iam_role.firehose.arn
+    bucket_arn          = "arn:aws:s3:::${module.storage.processed_bucket_name}"
+    prefix              = "events/year=!{timestamp:yyyy}/month=!{timestamp:MM}/day=!{timestamp:dd}/"
     error_output_prefix = "errors/type=!{firehose:error-output-type}/year=!{timestamp:yyyy}/month=!{timestamp:MM}/day=!{timestamp:dd}/"
-    buffering_interval = 60
-    buffering_size     = 64
-    compression_format = "GZIP"
+    buffering_interval  = 60
+    buffering_size      = 64
+    compression_format  = "GZIP"
 
     cloudwatch_logging_options {
       enabled         = true
@@ -194,15 +194,15 @@ resource "aws_kinesis_firehose_delivery_stream" "this" {
 module "stream_emitter" {
   source = "../stream-emitter-job"
 
-  environment                    = var.environment
-  project_name                   = var.project_name
-  workflow_name                  = var.workflow_name
+  environment                      = var.environment
+  project_name                     = var.project_name
+  workflow_name                    = var.workflow_name
   simulator_api_url_ssm_param_name = var.simulator_api_url_ssm_param_name
-  preset_id                      = var.preset_id
-  emission_rate_per_minute       = var.emission_rate_per_minute
-  stream_name                    = aws_kinesis_stream.this.name
-  stream_arn                     = aws_kinesis_stream.this.arn
-  container_image                = module.stream_emitter_image.image_uri
+  preset_id                        = var.preset_id
+  emission_rate_per_minute         = var.emission_rate_per_minute
+  stream_name                      = aws_kinesis_stream.this.name
+  stream_arn                       = aws_kinesis_stream.this.arn
+  container_image                  = module.stream_emitter_image.image_uri
 }
 
 resource "aws_ecr_repository" "dbt" {
