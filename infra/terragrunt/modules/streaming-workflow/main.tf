@@ -25,7 +25,7 @@ module "storage" {
 
 resource "aws_ecr_repository" "stream_emitter" {
   name                 = local.stream_emitter_repo_name
-  image_tag_mutability = "MUTABLE"
+  image_tag_mutability = "IMMUTABLE"
   force_delete         = true
 
   image_scanning_configuration {
@@ -76,7 +76,9 @@ module "stream_emitter_image" {
 }
 
 resource "aws_kinesis_stream" "this" {
-  name = local.stream_name
+  name            = local.stream_name
+  encryption_type = "KMS"
+  kms_key_id      = "alias/aws/kinesis"
 
   stream_mode_details {
     stream_mode = "ON_DEMAND"
@@ -205,7 +207,7 @@ module "stream_emitter" {
 
 resource "aws_ecr_repository" "dbt" {
   name                 = local.dbt_repo_name
-  image_tag_mutability = "MUTABLE"
+  image_tag_mutability = "IMMUTABLE"
   force_delete         = true
 
   image_scanning_configuration {
