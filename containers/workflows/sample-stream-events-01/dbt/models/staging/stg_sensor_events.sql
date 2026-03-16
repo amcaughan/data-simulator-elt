@@ -1,4 +1,7 @@
-{{ config(location=processed_table_location('staging', 'stg_sensor_events')) }}
+{{ config(
+  partitioned_by=["event_date"],
+  external_location=processed_table_location("staging", "stg_sensor_events")
+) }}
 
 with source_events as (
   select *
@@ -24,6 +27,22 @@ typed as (
     cast(device_status as varchar) as device_status
   from source_events
 )
-select *
+select
+  workflow_name,
+  source_preset_id,
+  source_schema_version,
+  source_scenario_name,
+  source_seed,
+  emitter_event_id,
+  emission_batch_started_at,
+  emitted_at,
+  emission_index,
+  device_id,
+  site_id,
+  device_type,
+  temperature_c,
+  pressure_kpa,
+  device_status,
+  event_date
 from typed
 where emitter_event_id is not null

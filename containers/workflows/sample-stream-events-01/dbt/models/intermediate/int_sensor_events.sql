@@ -1,4 +1,7 @@
-{{ config(location=processed_table_location('intermediate', 'int_sensor_events')) }}
+{{ config(
+  partitioned_by=["event_date"],
+  external_location=processed_table_location("intermediate", "int_sensor_events")
+) }}
 
 with ranked as (
   select
@@ -18,13 +21,13 @@ select
   emitter_event_id,
   emission_batch_started_at,
   emitted_at,
-  event_date,
   emission_index,
   device_id,
   site_id,
   device_type,
   temperature_c,
   pressure_kpa,
-  device_status
+  device_status,
+  event_date
 from ranked
 where emitter_event_rank = 1
