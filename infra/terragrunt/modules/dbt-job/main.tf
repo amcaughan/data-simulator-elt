@@ -5,6 +5,9 @@ locals {
   log_group_name = "/ecs/${local.family_name}"
 }
 
+data "aws_caller_identity" "current" {}
+data "aws_partition" "current" {}
+
 data "aws_iam_policy_document" "task_assume_role" {
   statement {
     effect = "Allow"
@@ -72,7 +75,7 @@ data "aws_iam_policy_document" "task_policy" {
   }
 
   statement {
-    sid    = "AthenaQueryAccess"
+    sid    = "AthenaQueryExecutionAccess"
     effect = "Allow"
 
     actions = [
@@ -80,10 +83,22 @@ data "aws_iam_policy_document" "task_policy" {
       "athena:GetQueryResults",
       "athena:StartQueryExecution",
       "athena:StopQueryExecution",
-      "athena:GetWorkGroup",
     ]
 
     resources = ["*"]
+  }
+
+  statement {
+    sid    = "AthenaWorkGroupAccess"
+    effect = "Allow"
+
+    actions = [
+      "athena:GetWorkGroup",
+    ]
+
+    resources = [
+      "arn:${data.aws_partition.current.partition}:athena:${var.aws_region}:${data.aws_caller_identity.current.account_id}:workgroup/${var.athena_workgroup_name}",
+    ]
   }
 
   statement {
@@ -105,7 +120,11 @@ data "aws_iam_policy_document" "task_policy" {
       "glue:UpdateTable",
     ]
 
-    resources = ["*"]
+    resources = [
+      "arn:${data.aws_partition.current.partition}:glue:${var.aws_region}:${data.aws_caller_identity.current.account_id}:catalog",
+      "arn:${data.aws_partition.current.partition}:glue:${var.aws_region}:${data.aws_caller_identity.current.account_id}:database/${var.glue_database_name}",
+      "arn:${data.aws_partition.current.partition}:glue:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/${var.glue_database_name}/*",
+    ]
   }
 }
 
