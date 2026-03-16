@@ -22,14 +22,13 @@ jobs:
       sarif_filename: checkov.sarif
       scan_path: .
 
-  # Temporarily disabled while the shared Trivy workflow is failing during setup.
-  # trivy:
-  #   uses: amcaughan/shared_workflows/.github/workflows/scan-trivy.yml@a4a6c7f36d5d9d964e7af20e6867b2c175629c68
-  #   with:
-  #     artifact_name: sarif-trivy
-  #     sarif_filename: trivy.sarif
-  #     scan_path: .
-  #     scanners: vuln,license
+  trivy:
+    uses: amcaughan/shared_workflows/.github/workflows/scan-trivy.yml@a4a6c7f36d5d9d964e7af20e6867b2c175629c68
+    with:
+      artifact_name: sarif-trivy
+      sarif_filename: trivy.sarif
+      scan_path: .
+      scanners: vuln,license
 
   gitleaks:
     uses: amcaughan/shared_workflows/.github/workflows/scan-gitleaks.yml@a4a6c7f36d5d9d964e7af20e6867b2c175629c68
@@ -48,7 +47,7 @@ jobs:
   report:
     runs-on: ubuntu-latest
     if: ${{ always() }}
-    needs: [checkov, gitleaks, actionlint]
+    needs: [checkov, trivy, gitleaks, actionlint]
 
     permissions:
       actions: read
