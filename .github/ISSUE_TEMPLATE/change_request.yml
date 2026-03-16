@@ -1,0 +1,30 @@
+name: Change request
+description: Propose a workflow, platform, or documentation improvement.
+title: "change: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What change do you want to make?
+    validations:
+      required: true
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation
+      description: Why is this worth doing?
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: Which workflows, modules, or docs are in scope?
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation
+      description: How should we know the change is done?
