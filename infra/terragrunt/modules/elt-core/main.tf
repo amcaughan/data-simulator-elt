@@ -25,6 +25,11 @@ locals {
 
 resource "aws_ecs_cluster" "this" {
   name = "${local.project_slug}-${var.environment}"
+
+  setting {
+    name  = "containerInsights"
+    value = "enabled"
+  }
 }
 
 resource "aws_s3_bucket" "athena_results" {
@@ -37,6 +42,19 @@ resource "aws_s3_bucket_versioning" "athena_results" {
 
   versioning_configuration {
     status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "athena_results" {
+  bucket = aws_s3_bucket.athena_results.id
+
+  rule {
+    id     = "abort-incomplete-multipart-uploads"
+    status = "Enabled"
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
   }
 }
 
@@ -108,7 +126,7 @@ resource "aws_ecr_repository" "this" {
   for_each = local.ecr_repositories
 
   name                 = each.value
-  image_tag_mutability = "MUTABLE"
+  image_tag_mutability = "IMMUTABLE"
   force_delete         = var.force_destroy_stateful_resources
 
   image_scanning_configuration {

@@ -1,8 +1,9 @@
 locals {
-  project_slug   = replace(var.project_name, "_", "-")
-  workflow_token = "${substr(replace(var.workflow_name, "-", ""), 0, 3)}${substr(md5(var.workflow_name), 0, 5)}"
-  family_name    = "${local.project_slug}-${var.environment}-${local.workflow_token}-dbt"
-  log_group_name = "/ecs/${local.family_name}"
+  project_slug         = replace(var.project_name, "_", "-")
+  workflow_token       = "${substr(replace(var.workflow_name, "-", ""), 0, 3)}${substr(md5(var.workflow_name), 0, 5)}"
+  family_name          = "${local.project_slug}-${var.environment}-${local.workflow_token}-dbt"
+  log_group_name       = "/ecs/${local.family_name}"
+  athena_workgroup_arn = "arn:${data.aws_partition.current.partition}:athena:${var.aws_region}:${data.aws_caller_identity.current.account_id}:workgroup/${var.athena_workgroup_name}"
 }
 
 data "aws_caller_identity" "current" {}
@@ -85,20 +86,7 @@ data "aws_iam_policy_document" "task_policy" {
       "athena:StopQueryExecution",
     ]
 
-    resources = ["*"]
-  }
-
-  statement {
-    sid    = "AthenaWorkGroupAccess"
-    effect = "Allow"
-
-    actions = [
-      "athena:GetWorkGroup",
-    ]
-
-    resources = [
-      "arn:${data.aws_partition.current.partition}:athena:${var.aws_region}:${data.aws_caller_identity.current.account_id}:workgroup/${var.athena_workgroup_name}",
-    ]
+    resources = [local.athena_workgroup_arn]
   }
 
   statement {
@@ -125,6 +113,15 @@ data "aws_iam_policy_document" "task_policy" {
       "arn:${data.aws_partition.current.partition}:glue:${var.aws_region}:${data.aws_caller_identity.current.account_id}:database/${var.glue_database_name}",
       "arn:${data.aws_partition.current.partition}:glue:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/${var.glue_database_name}/*",
     ]
+  }
+
+  statement {
+    sid    = "AthenaWorkGroupAccess"
+    effect = "Allow"
+
+    actions = ["athena:GetWorkGroup"]
+
+    resources = [local.athena_workgroup_arn]
   }
 }
 

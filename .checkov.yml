@@ -1,2 +1,16 @@
 skip-check:
   - CKV_GHA_7 # workflow_dispatch input is intentional for optional deep gitleaks scans
+  - CKV_AWS_111 # dbt needs write access to its own workflow-scoped buckets and Glue tables; resources are already constrained without adding artificial condition keys
+  - CKV_AWS_158 # CloudWatch KMS CMKs are not worth the extra key management in this sandbox
+  - CKV_AWS_159 # Workgroup-level Athena encryption would force extra staging configuration; dbt already controls its own S3 write locations
+  - CKV_AWS_185 # Customer-managed KMS keys for Kinesis add cost and policy overhead that are out of scope for this personal sandbox
+  - CKV_AWS_297 # EventBridge Scheduler defaults to AWS-owned encryption; CMKs are optional and not worth the extra key management here
+  - CKV_AWS_338 # 1-year log retention is unnecessary for short-lived demo workloads
+  - CKV_AWS_77 # Athena database metadata encryption is controlled at the Glue catalog/account level, not per-database in this module
+  - CKV_AWS_136 # ECR scan-on-push is enabled; CMK-backed ECR encryption adds extra key-management cost without much value here
+  - CKV_AWS_145 # S3 default AES256 encryption is sufficient for this sandbox; CMKs would add cost without meaningfully improving the demo
+  - CKV_AWS_144 # Cross-region replication is unnecessary ongoing cost for disposable demo data
+  - CKV_AWS_18 # Access logging on these disposable buckets would add noise and storage cost without much diagnostic value
+  - CKV2_AWS_34 # These SSM parameters are service-discovery metadata, not secret material
+  - CKV2_AWS_62 # S3 event notifications are intentionally not part of this architecture; ingestion is driven by ECS tasks and Firehose
+  - CKV_DOCKER_2 # These containers are short-lived batch/task images, so HEALTHCHECK adds little operational value here
