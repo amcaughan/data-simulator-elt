@@ -176,6 +176,8 @@ ATHENA_QUERY_RESULT() {
   local workgroup="$3"
   local output_location="$4"
   local query_id
+  local query_state
+  local failure_reason
 
   query_id="$(
     aws athena start-query-execution \
@@ -187,7 +189,37 @@ ATHENA_QUERY_RESULT() {
       --output text
   )"
 
-  aws athena wait query-succeeded --query-execution-id "$query_id"
+  while true; do
+    query_state="$(
+      aws athena get-query-execution \
+        --query-execution-id "$query_id" \
+        --query 'QueryExecution.Status.State' \
+        --output text
+    )"
+
+    case "$query_state" in
+      SUCCEEDED)
+        break
+        ;;
+      FAILED|CANCELLED)
+        failure_reason="$(
+          aws athena get-query-execution \
+            --query-execution-id "$query_id" \
+            --query 'QueryExecution.Status.StateChangeReason' \
+            --output text
+        )"
+        echo "Athena query ${query_state,,}: ${failure_reason}" >&2
+        exit 1
+        ;;
+      QUEUED|RUNNING)
+        sleep 2
+        ;;
+      *)
+        echo "Unexpected Athena query state: ${query_state}" >&2
+        exit 1
+        ;;
+    esac
+  done
 
   aws athena get-query-results \
     --query-execution-id "$query_id" \
