@@ -7,8 +7,8 @@ locals {
 
   requested_storage_locations = {
     for location_name, config in var.storage_locations : location_name => {
-      bucket_name = trimspace(coalesce(try(config.bucket_name, null), "")) == "" ? null : trimspace(config.bucket_name)
-      prefix      = trimspace(coalesce(try(config.prefix, null), "")) == "" ? null : trim(trimspace(config.prefix), "/")
+      bucket_name = try(trimspace(config.bucket_name), "") == "" ? null : trimspace(config.bucket_name)
+      prefix      = try(trimspace(config.prefix), "") == "" ? null : trim(try(trimspace(config.prefix), ""), "/")
     }
   }
 
