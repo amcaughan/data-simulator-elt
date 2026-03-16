@@ -1,7 +1,7 @@
 {% macro ensure_raw_external_table() %}
   {% if execute %}
     {% set raw_table = target.schema ~ '.raw_sample_api_polling_01' %}
-    {% set raw_location = "s3://" ~ env_var("PROCESSED_BUCKET_NAME") ~ "/raw/" %}
+    {% set raw_location = env_var("PROCESS_S3_ROOT") ~ "raw/" %}
     {% set create_sql %}
       CREATE EXTERNAL TABLE IF NOT EXISTS {{ raw_table }} (
         `__row_index` bigint,

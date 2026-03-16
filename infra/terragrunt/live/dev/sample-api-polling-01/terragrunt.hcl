@@ -40,8 +40,13 @@ inputs = {
     # Intentional here: the janitor treats apply time as "last touched" time.
     created_on = run_cmd("--terragrunt-quiet", "date", "-u", "+%Y-%m-%d")
   }
-  project_name                    = "data-simulator-elt"
-  workflow_name                   = "sample-api-polling-01"
+  project_name  = "data-simulator-elt"
+  workflow_name = "sample-api-polling-01"
+  storage_locations = {
+    ingest  = {}
+    process = {}
+    surface = {}
+  }
   ecs_cluster_arn                 = dependency.core.outputs.ecs_cluster_arn
   network_private_subnet_ids      = dependency.core.outputs.network_private_subnet_ids
   network_security_group_id       = dependency.core.outputs.network_security_group_id

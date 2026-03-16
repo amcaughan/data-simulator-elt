@@ -155,6 +155,37 @@ print("true" if sys.argv[1] in payload else "false")
 ' "$key"
 }
 
+json_map_value() {
+  local output_key="$1"
+  local map_key="$2"
+  python3 -c '
+import json
+import sys
+
+payload = json.load(sys.stdin)
+output_key = sys.argv[1]
+map_key = sys.argv[2]
+value = payload[output_key]["value"].get(map_key, "")
+if value is None:
+    print("")
+else:
+    print(value)
+' "$output_key" "$map_key"
+}
+
+print_storage_roots() {
+  local output_key="$1"
+  python3 -c '
+import json
+import sys
+
+payload = json.load(sys.stdin)
+roots = payload[sys.argv[1]]["value"]
+for key in sorted(roots):
+    print(f"  {key}: {roots[key]}")
+' "$output_key"
+}
+
 run_apply() {
   local stack_dir="$1"
   (
@@ -173,6 +204,20 @@ require_output_value() {
   value="$(printf '%s' "$payload" | json_value "$key")"
   if [[ -z "$value" ]]; then
     echo "Healthcheck failed: missing ${description} (${key})" >&2
+    exit 1
+  fi
+}
+
+require_map_value() {
+  local payload="$1"
+  local output_key="$2"
+  local map_key="$3"
+  local description="$4"
+  local value
+
+  value="$(printf '%s' "$payload" | json_map_value "$output_key" "$map_key")"
+  if [[ -z "$value" ]]; then
+    echo "Healthcheck failed: missing ${description} (${output_key}.${map_key})" >&2
     exit 1
   fi
 }
@@ -214,15 +259,9 @@ fi
 CORE_OUTPUTS="$(terragrunt_json_output "$CORE_DIR")"
 WORKFLOW_OUTPUTS="$(terragrunt_json_output "$WORKFLOW_DIR")"
 
-LANDING_BUCKET_NAME="$(printf '%s' "$WORKFLOW_OUTPUTS" | json_value landing_bucket_name)"
-PROCESSED_BUCKET_NAME="$(printf '%s' "$WORKFLOW_OUTPUTS" | json_value processed_bucket_name)"
-MARTS_BUCKET_NAME="$(printf '%s' "$WORKFLOW_OUTPUTS" | json_value marts_bucket_name)"
-
 echo
 echo "Discovered outputs:"
-echo "  landing:   s3://${LANDING_BUCKET_NAME}"
-echo "  processed: s3://${PROCESSED_BUCKET_NAME}"
-echo "  marts:     s3://${MARTS_BUCKET_NAME}"
+printf '%s' "$WORKFLOW_OUTPUTS" | print_storage_roots storage_location_s3_roots
 
 WORKFLOW_KIND="scheduled"
 if [[ "$(printf '%s' "$WORKFLOW_OUTPUTS" | json_has_key stream_emitter_task_definition_arn)" == "true" ]]; then
@@ -236,14 +275,14 @@ if [[ "$SKIP_HEALTHCHECK" != "true" ]]; then
   require_output_value "$CORE_OUTPUTS" ecs_cluster_arn "ECS cluster ARN"
   require_output_value "$CORE_OUTPUTS" glue_database_name "Glue database name"
   require_output_value "$CORE_OUTPUTS" athena_workgroup_name "Athena workgroup name"
-  require_output_value "$WORKFLOW_OUTPUTS" landing_bucket_name "landing bucket"
-  require_output_value "$WORKFLOW_OUTPUTS" processed_bucket_name "processed bucket"
-  require_output_value "$WORKFLOW_OUTPUTS" marts_bucket_name "marts bucket"
+  require_map_value "$WORKFLOW_OUTPUTS" storage_location_s3_roots process "process storage root"
+  require_map_value "$WORKFLOW_OUTPUTS" storage_location_s3_roots surface "surface storage root"
 
   if [[ "$WORKFLOW_KIND" == "streaming" ]]; then
     require_output_value "$WORKFLOW_OUTPUTS" stream_emitter_task_definition_arn "stream emitter task definition"
     require_output_value "$WORKFLOW_OUTPUTS" dbt_task_definition_arn "dbt task definition"
   else
+    require_map_value "$WORKFLOW_OUTPUTS" storage_location_s3_roots ingest "ingest storage root"
     require_output_value "$WORKFLOW_OUTPUTS" source_ingest_task_definition_arn "source-ingest task definition"
     require_output_value "$WORKFLOW_OUTPUTS" standardize_task_definition_arn "standardize task definition"
     require_output_value "$WORKFLOW_OUTPUTS" dbt_task_definition_arn "dbt task definition"

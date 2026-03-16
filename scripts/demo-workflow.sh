@@ -170,6 +170,37 @@ else:
 ' "$key"
 }
 
+json_map_value() {
+  local output_key="$1"
+  local map_key="$2"
+  python3 -c '
+import json
+import sys
+
+payload = json.load(sys.stdin)
+output_key = sys.argv[1]
+map_key = sys.argv[2]
+value = payload[output_key]["value"].get(map_key, "")
+if value is None:
+    print("")
+else:
+    print(value)
+' "$output_key" "$map_key"
+}
+
+print_storage_roots() {
+  local output_key="$1"
+  python3 -c '
+import json
+import sys
+
+payload = json.load(sys.stdin)
+roots = payload[sys.argv[1]]["value"]
+for key in sorted(roots):
+    print(f"  {key}: {roots[key]}")
+' "$output_key"
+}
+
 ATHENA_QUERY_RESULT() {
   local sql="$1"
   local database="$2"
@@ -277,15 +308,10 @@ WORKFLOW_OUTPUTS="$(terragrunt_json_output "$WORKFLOW_DIR")"
 GLUE_DATABASE_NAME="$(printf '%s' "$CORE_OUTPUTS" | json_value glue_database_name)"
 ATHENA_WORKGROUP_NAME="$(printf '%s' "$CORE_OUTPUTS" | json_value athena_workgroup_name)"
 ATHENA_RESULTS_BUCKET_NAME="$(printf '%s' "$CORE_OUTPUTS" | json_value athena_results_bucket_name)"
-LANDING_BUCKET_NAME="$(printf '%s' "$WORKFLOW_OUTPUTS" | json_value landing_bucket_name)"
-PROCESSED_BUCKET_NAME="$(printf '%s' "$WORKFLOW_OUTPUTS" | json_value processed_bucket_name)"
-MARTS_BUCKET_NAME="$(printf '%s' "$WORKFLOW_OUTPUTS" | json_value marts_bucket_name)"
 
 echo
 echo "Discovered outputs:"
-echo "  landing:   s3://${LANDING_BUCKET_NAME}"
-echo "  processed: s3://${PROCESSED_BUCKET_NAME}"
-echo "  marts:     s3://${MARTS_BUCKET_NAME}"
+printf '%s' "$WORKFLOW_OUTPUTS" | print_storage_roots storage_location_s3_roots
 echo "  database:  ${GLUE_DATABASE_NAME}"
 echo "  workgroup: ${ATHENA_WORKGROUP_NAME}"
 

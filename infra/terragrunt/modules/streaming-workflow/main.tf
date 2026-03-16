@@ -24,17 +24,19 @@ locals {
     try(module.dbt[0].task_role_arn, null),
     try(module.dbt[0].execution_role_arn, null),
   ])
+  process_storage_location = module.storage.storage_locations["process"]
+  surface_storage_location = module.storage.storage_locations["surface"]
+  firehose_events_prefix   = "${join("/", compact([local.process_storage_location.prefix, "events"]))}/year=!{timestamp:yyyy}/month=!{timestamp:MM}/day=!{timestamp:dd}/"
+  firehose_errors_prefix   = "${join("/", compact([local.process_storage_location.prefix, "errors"]))}/type=!{firehose:error-output-type}/year=!{timestamp:yyyy}/month=!{timestamp:MM}/day=!{timestamp:dd}/"
 }
 
 module "storage" {
   source = "../isolated-storage"
 
-  environment           = var.environment
-  project_name          = var.project_name
-  workflow_name         = var.workflow_name
-  landing_bucket_name   = var.landing_bucket_name
-  processed_bucket_name = var.processed_bucket_name
-  marts_bucket_name     = var.marts_bucket_name
+  environment       = var.environment
+  project_name      = var.project_name
+  workflow_name     = var.workflow_name
+  storage_locations = var.storage_locations
 }
 
 resource "aws_ecr_repository" "stream_emitter" {
@@ -149,8 +151,8 @@ data "aws_iam_policy_document" "firehose" {
     ]
 
     resources = [
-      "arn:aws:s3:::${module.storage.processed_bucket_name}",
-      "arn:aws:s3:::${module.storage.processed_bucket_name}/*",
+      "arn:aws:s3:::${local.process_storage_location.bucket_name}",
+      "arn:aws:s3:::${local.process_storage_location.bucket_name}/*",
     ]
   }
 
@@ -181,9 +183,9 @@ resource "aws_kinesis_firehose_delivery_stream" "this" {
 
   extended_s3_configuration {
     role_arn            = aws_iam_role.firehose.arn
-    bucket_arn          = "arn:aws:s3:::${module.storage.processed_bucket_name}"
-    prefix              = "events/year=!{timestamp:yyyy}/month=!{timestamp:MM}/day=!{timestamp:dd}/"
-    error_output_prefix = "errors/type=!{firehose:error-output-type}/year=!{timestamp:yyyy}/month=!{timestamp:MM}/day=!{timestamp:dd}/"
+    bucket_arn          = "arn:aws:s3:::${local.process_storage_location.bucket_name}"
+    prefix              = local.firehose_events_prefix
+    error_output_prefix = local.firehose_errors_prefix
     buffering_interval  = 60
     buffering_size      = 64
     compression_format  = "GZIP"
@@ -261,8 +263,10 @@ module "dbt" {
   environment                = var.environment
   project_name               = var.project_name
   workflow_name              = var.workflow_name
-  processed_bucket_name      = module.storage.processed_bucket_name
-  marts_bucket_name          = module.storage.marts_bucket_name
+  process_bucket_name        = local.process_storage_location.bucket_name
+  surface_bucket_name        = local.surface_storage_location.bucket_name
+  process_s3_root            = local.process_storage_location.s3_root
+  surface_s3_root            = local.surface_storage_location.s3_root
   glue_database_name         = var.glue_database_name
   athena_workgroup_name      = var.athena_workgroup_name
   athena_results_bucket_name = var.athena_results_bucket_name

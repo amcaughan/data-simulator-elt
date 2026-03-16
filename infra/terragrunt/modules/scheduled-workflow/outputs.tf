@@ -20,16 +20,20 @@ output "network_security_group_id" {
   sensitive = true
 }
 
-output "landing_bucket_name" {
-  value = module.storage.landing_bucket_name
+output "storage_locations" {
+  value = module.storage.storage_locations
 }
 
-output "processed_bucket_name" {
-  value = module.storage.processed_bucket_name
+output "storage_location_bucket_names" {
+  value = module.storage.storage_location_bucket_names
 }
 
-output "marts_bucket_name" {
-  value = module.storage.marts_bucket_name
+output "storage_location_prefixes" {
+  value = module.storage.storage_location_prefixes
+}
+
+output "storage_location_s3_roots" {
+  value = module.storage.storage_location_s3_roots
 }
 
 output "source_ingest_job_name" {

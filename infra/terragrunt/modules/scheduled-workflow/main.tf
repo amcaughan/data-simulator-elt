@@ -26,17 +26,28 @@ locals {
     try(module.dbt[0].task_role_arn, null),
     try(module.dbt[0].execution_role_arn, null),
   ])
+  ingest_storage_location  = module.storage.storage_locations["ingest"]
+  process_storage_location = module.storage.storage_locations["process"]
+  surface_storage_location = module.storage.storage_locations["surface"]
+  ingest_base_prefix_parts = compact([
+    local.ingest_storage_location.prefix,
+    trimspace(coalesce(var.landing_base_prefix, "")) == "" ? null : trim(var.landing_base_prefix, "/"),
+  ])
+  ingest_base_prefix = length(local.ingest_base_prefix_parts) == 0 ? null : join("/", local.ingest_base_prefix_parts)
+  process_base_prefix_parts = compact([
+    local.process_storage_location.prefix,
+    trimspace(coalesce(var.standardize_processed_base_prefix, "")) == "" ? null : trim(var.standardize_processed_base_prefix, "/"),
+  ])
+  process_base_prefix = length(local.process_base_prefix_parts) == 0 ? null : join("/", local.process_base_prefix_parts)
 }
 
 module "storage" {
   source = "../isolated-storage"
 
-  environment           = var.environment
-  project_name          = var.project_name
-  workflow_name         = var.workflow_name
-  landing_bucket_name   = var.landing_bucket_name
-  processed_bucket_name = var.processed_bucket_name
-  marts_bucket_name     = var.marts_bucket_name
+  environment       = var.environment
+  project_name      = var.project_name
+  workflow_name     = var.workflow_name
+  storage_locations = var.storage_locations
 }
 
 module "source_ingest" {
@@ -46,8 +57,8 @@ module "source_ingest" {
   environment                    = var.environment
   project_name                   = var.project_name
   workflow_name                  = var.workflow_name
-  landing_bucket_name            = module.storage.landing_bucket_name
-  landing_base_prefix            = var.landing_base_prefix
+  landing_bucket_name            = local.ingest_storage_location.bucket_name
+  landing_base_prefix            = local.ingest_base_prefix
   landing_partition_fields_json  = var.landing_partition_fields_json
   landing_path_suffix_json       = var.landing_path_suffix_json
   source_base_url_ssm_param_name = var.source_base_url_ssm_param_name
@@ -74,9 +85,9 @@ module "standardize" {
   environment                      = var.environment
   project_name                     = var.project_name
   workflow_name                    = var.workflow_name
-  landing_bucket_name              = module.storage.landing_bucket_name
-  processed_bucket_name            = module.storage.processed_bucket_name
-  landing_base_prefix              = var.landing_base_prefix
+  landing_bucket_name              = local.ingest_storage_location.bucket_name
+  processed_bucket_name            = local.process_storage_location.bucket_name
+  landing_base_prefix              = local.ingest_base_prefix
   landing_partition_fields_json    = var.landing_partition_fields_json
   landing_path_suffix_json         = var.landing_path_suffix_json
   standardize_strategy             = var.standardize_strategy
@@ -84,7 +95,7 @@ module "standardize" {
   aws_region                       = var.aws_region
   landing_slice_granularity        = var.slice_granularity
   output_slice_granularity         = var.standardize_output_slice_granularity
-  processed_base_prefix            = var.standardize_processed_base_prefix
+  processed_base_prefix            = local.process_base_prefix
   processed_partition_fields_json  = var.standardize_processed_partition_fields_json
   processed_path_suffix_json       = var.standardize_processed_path_suffix_json
   slice_selector_mode              = var.standardize_slice_selector_mode
@@ -149,8 +160,10 @@ module "dbt" {
   environment                = var.environment
   project_name               = var.project_name
   workflow_name              = var.workflow_name
-  processed_bucket_name      = module.storage.processed_bucket_name
-  marts_bucket_name          = module.storage.marts_bucket_name
+  process_bucket_name        = local.process_storage_location.bucket_name
+  surface_bucket_name        = local.surface_storage_location.bucket_name
+  process_s3_root            = local.process_storage_location.s3_root
+  surface_s3_root            = local.surface_storage_location.s3_root
   glue_database_name         = var.glue_database_name
   athena_workgroup_name      = var.athena_workgroup_name
   athena_results_bucket_name = var.athena_results_bucket_name

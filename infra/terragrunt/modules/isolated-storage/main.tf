@@ -4,15 +4,36 @@ data "aws_region" "current" {}
 locals {
   workflow_slug = trimsuffix(trimprefix(replace(var.workflow_name, "_", "-"), "sample-"), "-")
   bucket_prefix = "elt-${local.workflow_slug}-${var.environment}"
-  bucket_names = {
-    landing   = coalesce(var.landing_bucket_name, "${local.bucket_prefix}-landing-${data.aws_caller_identity.current.account_id}-${data.aws_region.current.region}")
-    processed = coalesce(var.processed_bucket_name, "${local.bucket_prefix}-proc-${data.aws_caller_identity.current.account_id}-${data.aws_region.current.region}")
-    marts     = coalesce(var.marts_bucket_name, "${local.bucket_prefix}-mart-${data.aws_caller_identity.current.account_id}-${data.aws_region.current.region}")
+
+  requested_storage_locations = {
+    for location_name, config in var.storage_locations : location_name => {
+      bucket_name = trimspace(coalesce(try(config.bucket_name, null), "")) == "" ? null : trimspace(config.bucket_name)
+      prefix      = trimspace(coalesce(try(config.prefix, null), "")) == "" ? null : trim(trimspace(config.prefix), "/")
+    }
   }
+
+  default_bucket_names = {
+    for location_name in keys(local.requested_storage_locations) :
+    location_name => "${local.bucket_prefix}-${location_name}-${data.aws_caller_identity.current.account_id}-${data.aws_region.current.region}"
+  }
+
+  resolved_storage_locations = {
+    for location_name, config in local.requested_storage_locations : location_name => {
+      bucket_name = coalesce(config.bucket_name, local.default_bucket_names[location_name])
+      prefix      = config.prefix
+      s3_root     = config.prefix == null ? "s3://${coalesce(config.bucket_name, local.default_bucket_names[location_name])}/" : "s3://${coalesce(config.bucket_name, local.default_bucket_names[location_name])}/${config.prefix}/"
+    }
+  }
+
+  unique_bucket_names = toset([
+    for config in values(local.resolved_storage_locations) : config.bucket_name
+  ])
 }
 
 resource "aws_s3_bucket" "this" {
-  for_each = local.bucket_names
+  for_each = {
+    for bucket_name in local.unique_bucket_names : bucket_name => bucket_name
+  }
 
   bucket        = each.value
   force_destroy = var.force_destroy_buckets

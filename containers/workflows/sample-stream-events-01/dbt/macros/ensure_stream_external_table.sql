@@ -1,7 +1,7 @@
 {% macro ensure_stream_external_table() %}
   {% if execute %}
     {% set stream_table = target.schema ~ '.raw_sample_stream_events_01' %}
-    {% set stream_location = "s3://" ~ env_var("PROCESSED_BUCKET_NAME") ~ "/events/" %}
+    {% set stream_location = env_var("PROCESS_S3_ROOT") ~ "events/" %}
     {% set create_sql %}
       CREATE EXTERNAL TABLE IF NOT EXISTS {{ stream_table }} (
         `workflow_name` string,

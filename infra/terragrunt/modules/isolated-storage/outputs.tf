@@ -1,11 +1,24 @@
-output "landing_bucket_name" {
-  value = aws_s3_bucket.this["landing"].bucket
+output "storage_locations" {
+  value = local.resolved_storage_locations
 }
 
-output "processed_bucket_name" {
-  value = aws_s3_bucket.this["processed"].bucket
+output "storage_location_bucket_names" {
+  value = {
+    for location_name, config in local.resolved_storage_locations :
+    location_name => config.bucket_name
+  }
 }
 
-output "marts_bucket_name" {
-  value = aws_s3_bucket.this["marts"].bucket
+output "storage_location_prefixes" {
+  value = {
+    for location_name, config in local.resolved_storage_locations :
+    location_name => config.prefix
+  }
+}
+
+output "storage_location_s3_roots" {
+  value = {
+    for location_name, config in local.resolved_storage_locations :
+    location_name => config.s3_root
+  }
 }
