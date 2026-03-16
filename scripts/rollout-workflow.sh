@@ -160,7 +160,7 @@ run_apply() {
   (
     cd "$stack_dir"
     rm -rf .terragrunt-cache
-    terragrunt apply --terragrunt-non-interactive -auto-approve
+    terragrunt --non-interactive apply -auto-approve
   )
 }
 

@@ -38,7 +38,7 @@ inputs = {
     auto_cleanup     = "true"
     cleanup_schedule = "weekly"
     # Intentional here: the janitor treats apply time as "last touched" time.
-    created_on = run_cmd("date", "-u", "+%Y-%m-%d")
+    created_on = run_cmd("--terragrunt-quiet", "date", "-u", "+%Y-%m-%d")
   }
   project_name                    = "data-simulator-elt"
   workflow_name                   = "sample-file-delivery-01"

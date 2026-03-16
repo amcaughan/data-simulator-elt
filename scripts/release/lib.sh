@@ -18,7 +18,7 @@ terragrunt_output_raw() {
 
   (
     cd "$stack_dir"
-    terragrunt output -raw "$output_name"
+    terragrunt --non-interactive output -raw "$output_name" | awk 'NF { line = $0 } END { print line }'
   )
 }
 

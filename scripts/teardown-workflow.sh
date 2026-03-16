@@ -81,7 +81,7 @@ run_destroy() {
   (
     cd "$stack_dir"
     rm -rf .terragrunt-cache
-    terragrunt destroy --terragrunt-non-interactive -auto-approve
+    terragrunt --non-interactive destroy -auto-approve
   )
 }
 
