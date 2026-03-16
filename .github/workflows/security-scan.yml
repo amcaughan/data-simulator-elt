@@ -14,6 +14,9 @@ on:
 permissions:
   contents: read
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   checkov:
     uses: amcaughan/shared_workflows/.github/workflows/scan-checkov.yml@5493055aceacdec37edc5c9bb9da0ec1ed820fe0
