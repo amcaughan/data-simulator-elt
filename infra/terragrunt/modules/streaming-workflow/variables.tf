@@ -72,10 +72,12 @@ variable "dbt_schedule_expression" {
   default = null
 }
 
-variable "dbt_source_dir" {
-  type = string
+variable "dbt_container_image" {
+  type    = string
+  default = null
 }
 
-variable "stream_emitter_source_dir" {
-  type = string
+variable "stream_emitter_container_image" {
+  type    = string
+  default = null
 }

@@ -15,19 +15,19 @@ output "marts_bucket_name" {
 }
 
 output "stream_emitter_job_name" {
-  value = module.stream_emitter.job_name
+  value = local.stream_emitter_enabled ? module.stream_emitter[0].job_name : null
 }
 
 output "stream_emitter_task_definition_arn" {
-  value = module.stream_emitter.task_definition_arn
+  value = local.stream_emitter_enabled ? module.stream_emitter[0].task_definition_arn : null
 }
 
 output "dbt_job_name" {
-  value = module.dbt.job_name
+  value = local.dbt_enabled ? module.dbt[0].job_name : null
 }
 
 output "dbt_task_definition_arn" {
-  value = module.dbt.task_definition_arn
+  value = local.dbt_enabled ? module.dbt[0].task_definition_arn : null
 }
 
 output "stream_emitter_ecr_repository_url" {
@@ -47,9 +47,9 @@ output "firehose_delivery_stream_name" {
 }
 
 output "stream_schedule_name" {
-  value = var.stream_schedule_expression == null ? null : aws_scheduler_schedule.stream_emitter[0].name
+  value = local.stream_schedule_enabled ? aws_scheduler_schedule.stream_emitter[0].name : null
 }
 
 output "dbt_schedule_name" {
-  value = var.dbt_schedule_expression == null ? null : aws_scheduler_schedule.dbt[0].name
+  value = local.dbt_schedule_enabled ? aws_scheduler_schedule.dbt[0].name : null
 }

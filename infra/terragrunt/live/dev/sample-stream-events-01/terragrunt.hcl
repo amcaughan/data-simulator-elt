@@ -2,6 +2,11 @@ include "root" {
   path = find_in_parent_folders("root.hcl")
 }
 
+locals {
+  workflow_release_manifest_path = "${get_repo_root()}/build/releases/dev/sample-stream-events-01.json"
+  workflow_release_manifest      = fileexists(local.workflow_release_manifest_path) ? jsondecode(file(local.workflow_release_manifest_path)) : {}
+}
+
 dependency "core" {
   config_path = "../core"
 
@@ -43,8 +48,8 @@ inputs = {
   preset_id                        = "iot_sensor_benchmark"
   emission_rate_per_minute         = 60
   # Keep the demo stream quiet until we intentionally run it by hand.
-  stream_schedule_expression = null
-  dbt_schedule_expression    = null
-  dbt_source_dir             = "${get_repo_root()}/containers/workflows/sample-stream-events-01/dbt"
-  stream_emitter_source_dir  = "${get_repo_root()}/containers/workflows/sample-stream-events-01/stream_emitter"
+  stream_schedule_expression     = null
+  dbt_schedule_expression        = null
+  dbt_container_image            = try(local.workflow_release_manifest.dbt_image_uri, null)
+  stream_emitter_container_image = try(local.workflow_release_manifest.stream_emitter_image_uri, null)
 }

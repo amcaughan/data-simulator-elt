@@ -21,7 +21,9 @@ Options:
   --slice-range-end-at ISO     Override the workflow demo end timestamp.
   --stream-emitter-runs N      Override the stream demo emitter run count.
   --skip-core-apply            Skip terragrunt apply for core.
+  --skip-core-release          Skip shared image release for core.
   --skip-workflow-apply        Skip terragrunt apply for the workflow.
+  --skip-workflow-release      Skip workflow-owned image release.
   --help                       Show this message.
 EOF
 }
@@ -40,7 +42,9 @@ SLICE_RANGE_START_AT=""
 SLICE_RANGE_END_AT=""
 STREAM_EMITTER_RUNS=""
 SKIP_CORE_APPLY="false"
+SKIP_CORE_RELEASE="false"
 SKIP_WORKFLOW_APPLY="false"
+SKIP_WORKFLOW_RELEASE="false"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -76,8 +80,16 @@ while [[ $# -gt 0 ]]; do
       SKIP_CORE_APPLY="true"
       shift
       ;;
+    --skip-core-release)
+      SKIP_CORE_RELEASE="true"
+      shift
+      ;;
     --skip-workflow-apply)
       SKIP_WORKFLOW_APPLY="true"
+      shift
+      ;;
+    --skip-workflow-release)
+      SKIP_WORKFLOW_RELEASE="true"
       shift
       ;;
     --help|-h)
@@ -195,9 +207,28 @@ if [[ "$SKIP_CORE_APPLY" != "true" ]]; then
   run_apply "$CORE_DIR"
 fi
 
+if [[ "$SKIP_CORE_RELEASE" != "true" ]]; then
+  echo
+  echo "Releasing shared core images..."
+  "${REPO_ROOT}/scripts/release-core-images.sh" \
+    --env "$ENVIRONMENT"
+fi
+
 if [[ "$SKIP_WORKFLOW_APPLY" != "true" ]]; then
   echo
   echo "Applying workflow stack..."
+  run_apply "$WORKFLOW_DIR"
+fi
+
+if [[ "$SKIP_WORKFLOW_RELEASE" != "true" ]]; then
+  echo
+  echo "Releasing workflow images..."
+  "${REPO_ROOT}/scripts/release-workflow-images.sh" \
+    --env "$ENVIRONMENT" \
+    --workflow "$WORKFLOW_NAME"
+
+  echo
+  echo "Re-applying workflow stack to pick up released image URIs..."
   run_apply "$WORKFLOW_DIR"
 fi
 

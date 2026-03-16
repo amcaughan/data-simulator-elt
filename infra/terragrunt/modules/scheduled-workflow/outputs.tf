@@ -33,27 +33,27 @@ output "marts_bucket_name" {
 }
 
 output "source_ingest_job_name" {
-  value = module.source_ingest.job_name
+  value = local.source_ingest_enabled ? module.source_ingest[0].job_name : null
 }
 
 output "source_ingest_task_definition_arn" {
-  value = module.source_ingest.task_definition_arn
+  value = local.source_ingest_enabled ? module.source_ingest[0].task_definition_arn : null
 }
 
 output "standardize_job_name" {
-  value = module.standardize.job_name
+  value = local.standardize_enabled ? module.standardize[0].job_name : null
 }
 
 output "standardize_task_definition_arn" {
-  value = module.standardize.task_definition_arn
+  value = local.standardize_enabled ? module.standardize[0].task_definition_arn : null
 }
 
 output "dbt_job_name" {
-  value = module.dbt.job_name
+  value = local.dbt_enabled ? module.dbt[0].job_name : null
 }
 
 output "dbt_task_definition_arn" {
-  value = module.dbt.task_definition_arn
+  value = local.dbt_enabled ? module.dbt[0].task_definition_arn : null
 }
 
 output "dbt_ecr_repository_url" {

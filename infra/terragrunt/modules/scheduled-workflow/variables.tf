@@ -74,10 +74,6 @@ variable "dbt_schedule_expression" {
   default = null
 }
 
-variable "dbt_source_dir" {
-  type = string
-}
-
 variable "source_adapter" {
   type    = string
   default = "simulator_api"
@@ -166,6 +162,11 @@ variable "source_ingest_container_image" {
 
 variable "standardize_container_image" {
   type = string
+}
+
+variable "dbt_container_image" {
+  type    = string
+  default = null
 }
 
 variable "standardize_slice_selector_mode" {

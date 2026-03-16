@@ -6,10 +6,26 @@ locals {
   source_schedule_name         = "${local.project_slug}-${var.environment}-${local.workflow_token}-si"
   standardize_schedule_name    = "${local.project_slug}-${var.environment}-${local.workflow_token}-std"
   dbt_schedule_name            = "${local.project_slug}-${var.environment}-${local.workflow_token}-dbt"
-  source_schedule_enabled      = var.ingest_schedule_expression != null
-  standardize_schedule_enabled = var.standardize_schedule_expression != null
-  dbt_schedule_enabled         = var.dbt_schedule_expression != null
+  source_ingest_enabled        = var.source_ingest_container_image != null
+  standardize_enabled          = var.standardize_container_image != null
+  dbt_enabled                  = var.dbt_container_image != null
+  source_schedule_enabled      = local.source_ingest_enabled && var.ingest_schedule_expression != null
+  standardize_schedule_enabled = local.standardize_enabled && var.standardize_schedule_expression != null
+  dbt_schedule_enabled         = local.dbt_enabled && var.dbt_schedule_expression != null
   any_schedule_enabled         = local.source_schedule_enabled || local.standardize_schedule_enabled || local.dbt_schedule_enabled
+  runnable_task_definition_arns = compact([
+    try(module.source_ingest[0].task_definition_arn, null),
+    try(module.standardize[0].task_definition_arn, null),
+    try(module.dbt[0].task_definition_arn, null),
+  ])
+  runnable_role_arns = compact([
+    try(module.source_ingest[0].task_role_arn, null),
+    try(module.source_ingest[0].execution_role_arn, null),
+    try(module.standardize[0].task_role_arn, null),
+    try(module.standardize[0].execution_role_arn, null),
+    try(module.dbt[0].task_role_arn, null),
+    try(module.dbt[0].execution_role_arn, null),
+  ])
 }
 
 module "storage" {
@@ -24,6 +40,7 @@ module "storage" {
 }
 
 module "source_ingest" {
+  count  = local.source_ingest_enabled ? 1 : 0
   source = "../source-ingest-job"
 
   environment                    = var.environment
@@ -51,6 +68,7 @@ module "source_ingest" {
 }
 
 module "standardize" {
+  count  = local.standardize_enabled ? 1 : 0
   source = "../standardize-job"
 
   environment                      = var.environment
@@ -124,16 +142,8 @@ resource "aws_ecr_lifecycle_policy" "dbt" {
   })
 }
 
-module "dbt_image" {
-  source = "../container-image"
-
-  aws_region         = var.aws_region
-  repository_url     = aws_ecr_repository.dbt.repository_url
-  runtime_source_dir = var.dbt_source_dir
-  build_context_dir  = var.dbt_source_dir
-}
-
 module "dbt" {
+  count  = local.dbt_enabled ? 1 : 0
   source = "../dbt-job"
 
   environment                = var.environment
@@ -144,7 +154,7 @@ module "dbt" {
   glue_database_name         = var.glue_database_name
   athena_workgroup_name      = var.athena_workgroup_name
   athena_results_bucket_name = var.athena_results_bucket_name
-  container_image            = module.dbt_image.image_uri
+  container_image            = var.dbt_container_image
 }
 
 data "aws_iam_policy_document" "scheduler_assume_role" {
@@ -178,11 +188,7 @@ data "aws_iam_policy_document" "scheduler" {
 
     actions = ["ecs:RunTask"]
 
-    resources = [
-      module.source_ingest.task_definition_arn,
-      module.standardize.task_definition_arn,
-      module.dbt.task_definition_arn,
-    ]
+    resources = local.runnable_task_definition_arns
 
     condition {
       test     = "ArnEquals"
@@ -197,14 +203,7 @@ data "aws_iam_policy_document" "scheduler" {
 
     actions = ["iam:PassRole"]
 
-    resources = [
-      module.source_ingest.task_role_arn,
-      module.source_ingest.execution_role_arn,
-      module.standardize.task_role_arn,
-      module.standardize.execution_role_arn,
-      module.dbt.task_role_arn,
-      module.dbt.execution_role_arn,
-    ]
+    resources = local.runnable_role_arns
   }
 }
 
@@ -232,7 +231,7 @@ resource "aws_scheduler_schedule" "source_ingest" {
     role_arn = aws_iam_role.scheduler[0].arn
 
     ecs_parameters {
-      task_definition_arn = module.source_ingest.task_definition_arn
+      task_definition_arn = module.source_ingest[0].task_definition_arn
       launch_type         = "FARGATE"
       task_count          = 1
       platform_version    = "LATEST"
@@ -262,7 +261,7 @@ resource "aws_scheduler_schedule" "standardize" {
     role_arn = aws_iam_role.scheduler[0].arn
 
     ecs_parameters {
-      task_definition_arn = module.standardize.task_definition_arn
+      task_definition_arn = module.standardize[0].task_definition_arn
       launch_type         = "FARGATE"
       task_count          = 1
       platform_version    = "LATEST"
@@ -292,7 +291,7 @@ resource "aws_scheduler_schedule" "dbt" {
     role_arn = aws_iam_role.scheduler[0].arn
 
     ecs_parameters {
-      task_definition_arn = module.dbt.task_definition_arn
+      task_definition_arn = module.dbt[0].task_definition_arn
       launch_type         = "FARGATE"
       task_count          = 1
       platform_version    = "LATEST"

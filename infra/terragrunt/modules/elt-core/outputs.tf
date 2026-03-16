@@ -30,16 +30,8 @@ output "source_ingest_ecr_repository_url" {
   value = aws_ecr_repository.this["source_ingest"].repository_url
 }
 
-output "source_ingest_image_uri" {
-  value = var.publish_runtime_images ? module.source_ingest_image[0].image_uri : null
-}
-
 output "standardize_ecr_repository_url" {
   value = aws_ecr_repository.this["standardize"].repository_url
-}
-
-output "standardize_image_uri" {
-  value = var.publish_runtime_images ? module.standardize_image[0].image_uri : null
 }
 
 output "network_vpc_id" {
