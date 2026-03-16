@@ -156,20 +156,32 @@ external producer the platform would consume from in a real system.
 Infrastructure is applied manually via Terragrunt. Image release is handled
 separately so container builds are no longer coupled to `terraform apply`.
 
-The normal flow is:
+The preferred operator entrypoints are:
+
+```bash
+./scripts/rollout-workflow.sh --workflow sample-api-polling-01
+./scripts/rollout-workflow.sh --workflow sample-api-polling-01 --sample-run
+./scripts/teardown-workflow.sh --workflow sample-api-polling-01
+./scripts/teardown-workflow.sh --workflow sample-api-polling-01 --include-core
+```
+
+That gives the repo an "everything up / everything down" path without mixing
+Docker release into Terraform modules.
+
+Under the hood, the normal low-level flow is:
 
 ```bash
 cd infra/terragrunt/live/dev/core
 terragrunt apply
 
 cd /home/aaron/repos/data-simulator-elt
-./scripts/release-core-images.sh --env dev
+./scripts/release/core-images.sh --env dev
 
 cd infra/terragrunt/live/dev/sample-api-polling-01
 terragrunt apply
 
 cd /home/aaron/repos/data-simulator-elt
-./scripts/release-workflow-images.sh --env dev --workflow sample-api-polling-01
+./scripts/release/workflow-images.sh --env dev --workflow sample-api-polling-01
 
 cd infra/terragrunt/live/dev/sample-api-polling-01
 terragrunt apply
@@ -187,13 +199,13 @@ there is a deliberate reason to automate deploys.
 For one-off manual runs and quick backfills, use:
 
 ```bash
-./scripts/run-scheduled-workflow.sh --workflow sample-api-polling-01
+./scripts/run/scheduled-workflow.sh --workflow sample-api-polling-01
 ```
 
 or:
 
 ```bash
-./scripts/run-scheduled-workflow.sh \
+./scripts/run/scheduled-workflow.sh \
   --workflow sample-api-polling-01 \
   --step source-ingest \
   --planning-mode temporal \
@@ -206,7 +218,7 @@ or:
 To run the workflow-local dbt layer manually:
 
 ```bash
-./scripts/run-scheduled-workflow.sh \
+./scripts/run/scheduled-workflow.sh \
   --workflow sample-api-polling-01 \
   --step dbt \
   --wait
@@ -225,7 +237,7 @@ finishes.
 For the stream-oriented sample, use:
 
 ```bash
-./scripts/run-streaming-workflow.sh \
+./scripts/run/streaming-workflow.sh \
   --workflow sample-stream-events-01 \
   --step all \
   --emitter-runs 3 \

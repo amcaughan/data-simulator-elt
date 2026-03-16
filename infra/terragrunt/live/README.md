@@ -26,7 +26,7 @@ That means the normal bootstrap flow is:
 
 For the streaming sample, the schedules may be intentionally `null` so the
 stack can be applied without constantly emitting demo data. One-off runs can
-still be launched with `scripts/run-streaming-workflow.sh`.
+still be launched with `scripts/run/streaming-workflow.sh`.
 
 These stacks assume the shared network layer eventually provides the private
 service endpoints needed for ECS task startup and logging.

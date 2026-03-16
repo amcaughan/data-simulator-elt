@@ -12,18 +12,18 @@ It currently uses the simulator API's `transaction_benchmark` preset.
 Its workflow-local dbt image is published with:
 
 ```bash
-./scripts/release-workflow-images.sh --env dev --workflow sample-api-polling-01
+./scripts/release/workflow-images.sh --env dev --workflow sample-api-polling-01
 ```
 
 Manual examples:
 
 ```bash
-./scripts/run-scheduled-workflow.sh \
+./scripts/run/scheduled-workflow.sh \
   --workflow sample-api-polling-01
 ```
 
 ```bash
-./scripts/run-scheduled-workflow.sh \
+./scripts/run/scheduled-workflow.sh \
   --workflow sample-api-polling-01 \
   --step source-ingest \
   --planning-mode temporal \

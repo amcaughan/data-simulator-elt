@@ -13,18 +13,18 @@ It currently uses the simulator API's `batch_delivery_benchmark` preset.
 Its workflow-local dbt image is published with:
 
 ```bash
-./scripts/release-workflow-images.sh --env dev --workflow sample-file-delivery-01
+./scripts/release/workflow-images.sh --env dev --workflow sample-file-delivery-01
 ```
 
 Manual examples:
 
 ```bash
-./scripts/run-scheduled-workflow.sh \
+./scripts/run/scheduled-workflow.sh \
   --workflow sample-file-delivery-01
 ```
 
 ```bash
-./scripts/run-scheduled-workflow.sh \
+./scripts/run/scheduled-workflow.sh \
   --workflow sample-file-delivery-01 \
   --step source-ingest \
   --planning-mode temporal \

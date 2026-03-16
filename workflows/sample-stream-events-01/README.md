@@ -16,7 +16,7 @@ This workflow owns:
 Its workflow-local images are published with:
 
 ```bash
-./scripts/release-workflow-images.sh --env dev --workflow sample-stream-events-01
+./scripts/release/workflow-images.sh --env dev --workflow sample-stream-events-01
 ```
 
 The current sample uses the simulator API's `iot_sensor_benchmark` preset in
@@ -26,7 +26,7 @@ Firehose, and then builds queryable Athena marts from the landed stream files.
 Manual examples:
 
 ```bash
-./scripts/run-streaming-workflow.sh \
+./scripts/run/streaming-workflow.sh \
   --workflow sample-stream-events-01 \
   --step all \
   --emitter-runs 3 \
@@ -34,7 +34,7 @@ Manual examples:
 ```
 
 ```bash
-./scripts/run-streaming-workflow.sh \
+./scripts/run/streaming-workflow.sh \
   --workflow sample-stream-events-01 \
   --step dbt \
   --wait

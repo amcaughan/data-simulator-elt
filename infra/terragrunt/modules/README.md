@@ -27,8 +27,8 @@ The intended split is:
 - live stacks instantiate concrete example workloads
 
 Image publishing now happens outside Terraform through:
-- `scripts/release-core-images.sh`
-- `scripts/release-workflow-images.sh`
+- `scripts/release/core-images.sh`
+- `scripts/release/workflow-images.sh`
 
 Those scripts write local release manifests under `build/releases/<env>/`, and
 the live Terragrunt stacks read those manifests when wiring task definitions to
