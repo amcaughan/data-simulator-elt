@@ -1,15 +1,15 @@
 locals {
-  project_slug      = replace(var.project_name, "_", "-")
-  workflow_token    = "${substr(replace(var.workflow_name, "-", ""), 0, 3)}${substr(md5(var.workflow_name), 0, 5)}"
-  dbt_repo_name     = "${local.project_slug}-${var.environment}-${local.workflow_token}-dbt"
-  scheduler_name    = "${local.project_slug}-${var.environment}-${local.workflow_token}-sch"
-  source_schedule_name = "${local.project_slug}-${var.environment}-${local.workflow_token}-si"
-  standardize_schedule_name = "${local.project_slug}-${var.environment}-${local.workflow_token}-std"
-  dbt_schedule_name = "${local.project_slug}-${var.environment}-${local.workflow_token}-dbt"
-  source_schedule_enabled = var.ingest_schedule_expression != null
+  project_slug                 = replace(var.project_name, "_", "-")
+  workflow_token               = "${substr(replace(var.workflow_name, "-", ""), 0, 3)}${substr(md5(var.workflow_name), 0, 5)}"
+  dbt_repo_name                = "${local.project_slug}-${var.environment}-${local.workflow_token}-dbt"
+  scheduler_name               = "${local.project_slug}-${var.environment}-${local.workflow_token}-sch"
+  source_schedule_name         = "${local.project_slug}-${var.environment}-${local.workflow_token}-si"
+  standardize_schedule_name    = "${local.project_slug}-${var.environment}-${local.workflow_token}-std"
+  dbt_schedule_name            = "${local.project_slug}-${var.environment}-${local.workflow_token}-dbt"
+  source_schedule_enabled      = var.ingest_schedule_expression != null
   standardize_schedule_enabled = var.standardize_schedule_expression != null
-  dbt_schedule_enabled = var.dbt_schedule_expression != null
-  any_schedule_enabled = local.source_schedule_enabled || local.standardize_schedule_enabled || local.dbt_schedule_enabled
+  dbt_schedule_enabled         = var.dbt_schedule_expression != null
+  any_schedule_enabled         = local.source_schedule_enabled || local.standardize_schedule_enabled || local.dbt_schedule_enabled
 }
 
 module "storage" {
@@ -53,32 +53,32 @@ module "source_ingest" {
 module "standardize" {
   source = "../standardize-job"
 
-  environment                    = var.environment
-  project_name                   = var.project_name
-  workflow_name                  = var.workflow_name
-  landing_bucket_name            = module.storage.landing_bucket_name
-  processed_bucket_name          = module.storage.processed_bucket_name
-  landing_base_prefix            = var.landing_base_prefix
-  landing_partition_fields_json  = var.landing_partition_fields_json
-  landing_path_suffix_json       = var.landing_path_suffix_json
-  standardize_strategy           = var.standardize_strategy
+  environment                      = var.environment
+  project_name                     = var.project_name
+  workflow_name                    = var.workflow_name
+  landing_bucket_name              = module.storage.landing_bucket_name
+  processed_bucket_name            = module.storage.processed_bucket_name
+  landing_base_prefix              = var.landing_base_prefix
+  landing_partition_fields_json    = var.landing_partition_fields_json
+  landing_path_suffix_json         = var.landing_path_suffix_json
+  standardize_strategy             = var.standardize_strategy
   standardize_strategy_config_json = var.standardize_strategy_config_json
-  aws_region                     = var.aws_region
-  landing_slice_granularity      = var.slice_granularity
-  output_slice_granularity       = var.standardize_output_slice_granularity
-  processed_base_prefix          = var.standardize_processed_base_prefix
-  processed_partition_fields_json = var.standardize_processed_partition_fields_json
-  processed_path_suffix_json     = var.standardize_processed_path_suffix_json
-  slice_selector_mode            = var.standardize_slice_selector_mode
-  slice_pinned_at                = var.standardize_slice_pinned_at
-  slice_range_start_at           = var.standardize_slice_range_start_at
-  slice_range_end_at             = var.standardize_slice_range_end_at
-  slice_relative_count           = var.standardize_slice_relative_count
-  slice_relative_direction       = var.standardize_slice_relative_direction
-  slice_relative_anchor_at       = var.standardize_slice_relative_anchor_at
-  slice_alignment_policy         = var.standardize_slice_alignment_policy
-  slice_range_policy             = var.standardize_slice_range_policy
-  container_image                = var.standardize_container_image
+  aws_region                       = var.aws_region
+  landing_slice_granularity        = var.slice_granularity
+  output_slice_granularity         = var.standardize_output_slice_granularity
+  processed_base_prefix            = var.standardize_processed_base_prefix
+  processed_partition_fields_json  = var.standardize_processed_partition_fields_json
+  processed_path_suffix_json       = var.standardize_processed_path_suffix_json
+  slice_selector_mode              = var.standardize_slice_selector_mode
+  slice_pinned_at                  = var.standardize_slice_pinned_at
+  slice_range_start_at             = var.standardize_slice_range_start_at
+  slice_range_end_at               = var.standardize_slice_range_end_at
+  slice_relative_count             = var.standardize_slice_relative_count
+  slice_relative_direction         = var.standardize_slice_relative_direction
+  slice_relative_anchor_at         = var.standardize_slice_relative_anchor_at
+  slice_alignment_policy           = var.standardize_slice_alignment_policy
+  slice_range_policy               = var.standardize_slice_range_policy
+  container_image                  = var.standardize_container_image
 }
 
 resource "aws_ecr_repository" "dbt" {

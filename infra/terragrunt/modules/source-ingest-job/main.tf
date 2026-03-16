@@ -6,10 +6,10 @@ data "aws_ssm_parameter" "source_base_url" {
 data "aws_caller_identity" "current" {}
 
 locals {
-  project_slug   = replace(var.project_name, "_", "-")
-  workflow_token = "${substr(replace(var.workflow_name, "-", ""), 0, 3)}${substr(md5(var.workflow_name), 0, 5)}"
-  family_name    = "${local.project_slug}-${var.environment}-${local.workflow_token}-si"
-  log_group_name = "/ecs/${local.family_name}"
+  project_slug          = replace(var.project_name, "_", "-")
+  workflow_token        = "${substr(replace(var.workflow_name, "-", ""), 0, 3)}${substr(md5(var.workflow_name), 0, 5)}"
+  family_name           = "${local.project_slug}-${var.environment}-${local.workflow_token}-si"
+  log_group_name        = "/ecs/${local.family_name}"
   source_base_url_value = try(data.aws_ssm_parameter.source_base_url[0].value, null)
   execute_api_parts = (
     var.source_adapter == "simulator_api" && local.source_base_url_value != null
@@ -220,10 +220,10 @@ resource "aws_ecs_task_definition" "this" {
 
   container_definitions = jsonencode([
     {
-      name      = "source-ingest"
-      image     = var.container_image
-      essential = true
-      command   = var.command
+      name        = "source-ingest"
+      image       = var.container_image
+      essential   = true
+      command     = var.command
       environment = local.environment
       secrets = [
         for parameter in data.aws_ssm_parameter.source_base_url : {

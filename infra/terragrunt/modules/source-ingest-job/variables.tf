@@ -36,7 +36,7 @@ variable "landing_path_suffix_json" {
 }
 
 variable "source_base_url_ssm_param_name" {
-  type = string
+  type    = string
   default = null
 }
 

@@ -16,7 +16,7 @@ variable "build_context_dir" {
 }
 
 variable "extra_hash_dirs" {
-  type = list(string)
+  type    = list(string)
   default = []
 }
 

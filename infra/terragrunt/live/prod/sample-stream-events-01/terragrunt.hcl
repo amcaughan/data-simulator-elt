@@ -35,8 +35,8 @@ inputs = {
   preset_id                        = "iot_sensor_benchmark"
   emission_rate_per_minute         = 60
   # Keep the demo stream quiet until we intentionally run it by hand.
-  stream_schedule_expression       = null
-  dbt_schedule_expression          = null
-  dbt_source_dir                   = "${get_repo_root()}/containers/workflows/sample-stream-events-01/dbt"
-  stream_emitter_source_dir        = "${get_repo_root()}/containers/workflows/sample-stream-events-01/stream_emitter"
+  stream_schedule_expression = null
+  dbt_schedule_expression    = null
+  dbt_source_dir             = "${get_repo_root()}/containers/workflows/sample-stream-events-01/dbt"
+  stream_emitter_source_dir  = "${get_repo_root()}/containers/workflows/sample-stream-events-01/stream_emitter"
 }

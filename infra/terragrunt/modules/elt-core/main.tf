@@ -90,7 +90,7 @@ resource "aws_s3_bucket_policy" "athena_results" {
 }
 
 resource "aws_athena_workgroup" "this" {
-  name = "${local.project_slug}-${var.environment}"
+  name          = "${local.project_slug}-${var.environment}"
   force_destroy = var.force_destroy_stateful_resources
 
   # Leave query result staging to clients like dbt-athena via s3_staging_dir.
@@ -155,10 +155,10 @@ module "source_ingest_image" {
   count  = var.publish_runtime_images ? 1 : 0
   source = "../container-image"
 
-  aws_region        = data.aws_region.current.region
-  repository_url    = aws_ecr_repository.this["source_ingest"].repository_url
+  aws_region         = data.aws_region.current.region
+  repository_url     = aws_ecr_repository.this["source_ingest"].repository_url
   runtime_source_dir = var.source_ingest_container_source_dir
-  build_context_dir = var.shared_containers_build_context_dir
+  build_context_dir  = var.shared_containers_build_context_dir
   extra_hash_dirs = [
     var.shared_common_container_source_dir,
   ]
@@ -168,10 +168,10 @@ module "standardize_image" {
   count  = var.publish_runtime_images ? 1 : 0
   source = "../container-image"
 
-  aws_region        = data.aws_region.current.region
-  repository_url    = aws_ecr_repository.this["standardize"].repository_url
+  aws_region         = data.aws_region.current.region
+  repository_url     = aws_ecr_repository.this["standardize"].repository_url
   runtime_source_dir = var.standardize_container_source_dir
-  build_context_dir = var.shared_containers_build_context_dir
+  build_context_dir  = var.shared_containers_build_context_dir
   extra_hash_dirs = [
     var.shared_common_container_source_dir,
   ]
