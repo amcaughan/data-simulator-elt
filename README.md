@@ -45,7 +45,10 @@ demo runners:
 
 Those demos:
 - apply `core`
+- release shared runtime images
 - apply the requested workflow stack
+- release workflow-owned images
+- re-apply the workflow stack to pick up immutable image URIs
 - run a small sample load
 - wait for the workflow to finish
 - run an Athena sanity query and print the result
@@ -77,7 +80,6 @@ The intended data movement is:
 The shared core is expected to own:
 - ECS cluster
 - shared ECR repositories for platform runtimes
-- container-image builds that publish immutable runtime images from `containers/shared/`
 - Glue database
 - Athena workgroup
 - Athena results storage
@@ -151,8 +153,35 @@ external producer the platform would consume from in a real system.
 
 ## Usage
 
-Infrastructure is applied manually via Terragrunt.
-CI should stay focused on static analysis, formatting, and security checks unless
+Infrastructure is applied manually via Terragrunt. Image release is handled
+separately so container builds are no longer coupled to `terraform apply`.
+
+The normal flow is:
+
+```bash
+cd infra/terragrunt/live/dev/core
+terragrunt apply
+
+cd /home/aaron/repos/data-simulator-elt
+./scripts/release-core-images.sh --env dev
+
+cd infra/terragrunt/live/dev/sample-api-polling-01
+terragrunt apply
+
+cd /home/aaron/repos/data-simulator-elt
+./scripts/release-workflow-images.sh --env dev --workflow sample-api-polling-01
+
+cd infra/terragrunt/live/dev/sample-api-polling-01
+terragrunt apply
+```
+
+The release scripts write local manifests under `build/releases/<env>/`. The
+live Terragrunt stacks read those manifests so the same flow can be lifted into
+a GitHub Actions runner later without changing the Terraform modules.
+In practice, a runner only needs Docker, Terragrunt, and AWS credentials with
+ECR push plus the normal Terraform apply permissions.
+
+CI should stay focused on static analysis, formatting, and security checks until
 there is a deliberate reason to automate deploys.
 
 For one-off manual runs and quick backfills, use:
@@ -228,7 +257,10 @@ or:
 
 This helper will:
 - apply `core`
+- release shared runtime images
 - apply the requested workflow stack
+- release workflow-owned images
+- re-apply the workflow stack to pick up immutable image URIs
 - print the landing, processed, marts, and Athena output locations
 - run a small sample workload for that workflow
 - wait for the workflow to finish

@@ -9,6 +9,12 @@ Intent:
 This workflow owns its dbt project under `containers/workflows/sample-api-polling-01/dbt/`.
 It currently uses the simulator API's `transaction_benchmark` preset.
 
+Its workflow-local dbt image is published with:
+
+```bash
+./scripts/release-workflow-images.sh --env dev --workflow sample-api-polling-01
+```
+
 Manual examples:
 
 ```bash
