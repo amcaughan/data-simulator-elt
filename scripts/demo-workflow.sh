@@ -24,6 +24,7 @@ Options:
   --skip-core-release          Skip shared image release for core.
   --skip-workflow-apply        Skip terragrunt apply for the workflow.
   --skip-workflow-release      Skip workflow-owned image release.
+  --skip-healthcheck           Skip the rollout healthcheck.
   --help                       Show this message.
 EOF
 }
@@ -32,7 +33,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 # shellcheck source=/dev/null
-source "${SCRIPT_DIR}/demo-workflow-config.sh"
+source "${SCRIPT_DIR}/demo/workflow-config.sh"
 
 ENVIRONMENT="dev"
 WORKFLOW_NAME=""
@@ -45,6 +46,7 @@ SKIP_CORE_APPLY="false"
 SKIP_CORE_RELEASE="false"
 SKIP_WORKFLOW_APPLY="false"
 SKIP_WORKFLOW_RELEASE="false"
+SKIP_HEALTHCHECK="false"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -90,6 +92,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --skip-workflow-release)
       SKIP_WORKFLOW_RELEASE="true"
+      shift
+      ;;
+    --skip-healthcheck)
+      SKIP_HEALTHCHECK="true"
       shift
       ;;
     --help|-h)
@@ -164,15 +170,6 @@ else:
 ' "$key"
 }
 
-run_apply() {
-  local stack_dir="$1"
-  (
-    cd "$stack_dir"
-    rm -rf .terragrunt-cache
-    terragrunt apply --terragrunt-non-interactive -auto-approve
-  )
-}
-
 ATHENA_QUERY_RESULT() {
   local sql="$1"
   local database="$2"
@@ -201,36 +198,46 @@ ATHENA_QUERY_RESULT() {
 echo "Demo workflow: ${WORKFLOW_NAME}"
 echo "Environment:   ${ENVIRONMENT}"
 
-if [[ "$SKIP_CORE_APPLY" != "true" ]]; then
-  echo
-  echo "Applying core stack..."
-  run_apply "$CORE_DIR"
+ROLLOUT_ARGS=(
+  "${REPO_ROOT}/scripts/rollout-workflow.sh"
+  --workflow "$WORKFLOW_NAME"
+  --env "$ENVIRONMENT"
+  --sample-run
+)
+
+if [[ -n "$SLICE_RANGE_START_AT" ]]; then
+  ROLLOUT_ARGS+=(--slice-range-start-at "$SLICE_RANGE_START_AT")
 fi
 
-if [[ "$SKIP_CORE_RELEASE" != "true" ]]; then
-  echo
-  echo "Releasing shared core images..."
-  "${REPO_ROOT}/scripts/release-core-images.sh" \
-    --env "$ENVIRONMENT"
+if [[ -n "$SLICE_RANGE_END_AT" ]]; then
+  ROLLOUT_ARGS+=(--slice-range-end-at "$SLICE_RANGE_END_AT")
 fi
 
-if [[ "$SKIP_WORKFLOW_APPLY" != "true" ]]; then
-  echo
-  echo "Applying workflow stack..."
-  run_apply "$WORKFLOW_DIR"
+if [[ -n "$STREAM_EMITTER_RUNS" ]]; then
+  ROLLOUT_ARGS+=(--stream-emitter-runs "$STREAM_EMITTER_RUNS")
 fi
 
-if [[ "$SKIP_WORKFLOW_RELEASE" != "true" ]]; then
-  echo
-  echo "Releasing workflow images..."
-  "${REPO_ROOT}/scripts/release-workflow-images.sh" \
-    --env "$ENVIRONMENT" \
-    --workflow "$WORKFLOW_NAME"
-
-  echo
-  echo "Re-applying workflow stack to pick up released image URIs..."
-  run_apply "$WORKFLOW_DIR"
+if [[ "$SKIP_CORE_APPLY" == "true" ]]; then
+  ROLLOUT_ARGS+=(--skip-core-apply)
 fi
+
+if [[ "$SKIP_CORE_RELEASE" == "true" ]]; then
+  ROLLOUT_ARGS+=(--skip-core-release)
+fi
+
+if [[ "$SKIP_WORKFLOW_APPLY" == "true" ]]; then
+  ROLLOUT_ARGS+=(--skip-workflow-apply)
+fi
+
+if [[ "$SKIP_WORKFLOW_RELEASE" == "true" ]]; then
+  ROLLOUT_ARGS+=(--skip-workflow-release)
+fi
+
+if [[ "$SKIP_HEALTHCHECK" == "true" ]]; then
+  ROLLOUT_ARGS+=(--skip-healthcheck)
+fi
+
+"${ROLLOUT_ARGS[@]}"
 
 CORE_OUTPUTS="$(terragrunt_json_output "$CORE_DIR")"
 WORKFLOW_OUTPUTS="$(terragrunt_json_output "$WORKFLOW_DIR")"
@@ -249,27 +256,6 @@ echo "  processed: s3://${PROCESSED_BUCKET_NAME}"
 echo "  marts:     s3://${MARTS_BUCKET_NAME}"
 echo "  database:  ${GLUE_DATABASE_NAME}"
 echo "  workgroup: ${ATHENA_WORKGROUP_NAME}"
-
-echo
-if [[ "${DEMO_RUNNER_KIND}" == "streaming" ]]; then
-  echo "Running sample streaming workflow..."
-  "${REPO_ROOT}/scripts/run-streaming-workflow.sh" \
-    --workflow "$WORKFLOW_NAME" \
-    --env "$ENVIRONMENT" \
-    --step all \
-    --emitter-runs "$STREAM_EMITTER_RUNS" \
-    --wait
-else
-  echo "Running sample workflow slice window..."
-  "${REPO_ROOT}/scripts/run-scheduled-workflow.sh" \
-    --workflow "$WORKFLOW_NAME" \
-    --env "$ENVIRONMENT" \
-    --step all \
-    --slice-selector-mode range \
-    --slice-range-start-at "$SLICE_RANGE_START_AT" \
-    --slice-range-end-at "$SLICE_RANGE_END_AT" \
-    --wait
-fi
 
 if [[ -n "$QUERY_SQL" ]]; then
   FINAL_QUERY_SQL="$QUERY_SQL"

@@ -4,7 +4,7 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  ./scripts/release-workflow-images.sh --workflow WORKFLOW [--env ENV] [--region AWS_REGION]
+  ./scripts/release/workflow-images.sh --workflow WORKFLOW [--env ENV] [--region AWS_REGION]
 
 Builds and pushes workflow-owned images, then writes their immutable URIs into
 build/releases/<env>/<workflow>.json for later Terragrunt applies.
@@ -13,7 +13,7 @@ EOF
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
-source "${SCRIPT_DIR}/release-lib.sh"
+source "${SCRIPT_DIR}/lib.sh"
 
 ENVIRONMENT="dev"
 AWS_REGION="${AWS_REGION:-}"

@@ -4,7 +4,7 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  ./scripts/run-scheduled-workflow.sh --workflow WORKFLOW [options]
+  ./scripts/run/scheduled-workflow.sh --workflow WORKFLOW [options]
 
 Run one-off ECS tasks for a scheduled workflow stack without changing the
 scheduler resources. This resolves workflow outputs, then delegates to the
@@ -52,15 +52,15 @@ Options:
   --help                       Show this help.
 
 Examples:
-  ./scripts/run-scheduled-workflow.sh \
+  ./scripts/run/scheduled-workflow.sh \
     --workflow sample-api-polling-01
 
-  ./scripts/run-scheduled-workflow.sh \
+  ./scripts/run/scheduled-workflow.sh \
     --workflow sample-api-polling-01 \
     --slice-selector-mode relative \
     --slice-relative-count 7
 
-  ./scripts/run-scheduled-workflow.sh \
+  ./scripts/run/scheduled-workflow.sh \
     --workflow sample-file-delivery-01 \
     --step source-ingest \
     --slice-selector-mode pinned \
@@ -69,8 +69,8 @@ EOF
 }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-STEP_RUNNER="${REPO_ROOT}/scripts/run-ecs-step.sh"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+STEP_RUNNER="${REPO_ROOT}/scripts/run/ecs-step.sh"
 
 ENVIRONMENT="dev"
 WORKFLOW_NAME=""

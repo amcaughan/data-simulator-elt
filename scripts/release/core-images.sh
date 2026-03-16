@@ -4,7 +4,7 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  ./scripts/release-core-images.sh [--env ENV] [--region AWS_REGION]
+  ./scripts/release/core-images.sh [--env ENV] [--region AWS_REGION]
 
 Builds and pushes the shared source-ingest and standardize images, then writes
 their immutable URIs into build/releases/<env>/core.json for later Terragrunt
@@ -14,7 +14,7 @@ EOF
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
-source "${SCRIPT_DIR}/release-lib.sh"
+source "${SCRIPT_DIR}/lib.sh"
 
 ENVIRONMENT="dev"
 AWS_REGION="${AWS_REGION:-}"

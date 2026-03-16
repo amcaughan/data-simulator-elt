@@ -4,7 +4,7 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  ./scripts/run-ecs-step.sh [options]
+  ./scripts/run/ecs-step.sh [options]
 
 Run a single ECS task directly when you already know the cluster, task
 definition, networking, and container override values.
