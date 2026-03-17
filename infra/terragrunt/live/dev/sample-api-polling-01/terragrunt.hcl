@@ -24,7 +24,7 @@ dependency "core" {
     standardize_image_uri      = "111111111111.dkr.ecr.us-east-2.amazonaws.com/data-simulator-elt-dev-standardize:sha-placeholder"
   }
 
-  mock_outputs_allowed_terraform_commands = ["init", "validate", "plan"]
+  mock_outputs_allowed_terraform_commands = ["init", "validate", "plan", "destroy"]
 }
 
 terraform {
