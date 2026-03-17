@@ -18,9 +18,15 @@ Each workflow stack is expected to compose:
 - optionally dbt
 - workflow-specific scheduling or stream resources
 
+The live stacks read immutable image URIs from `build/releases/<env>/`.
+That means the normal bootstrap flow is:
+- apply the stack that creates the ECR repositories
+- run the matching release script to publish images
+- apply again so task definitions point at the released image URIs
+
 For the streaming sample, the schedules may be intentionally `null` so the
 stack can be applied without constantly emitting demo data. One-off runs can
-still be launched with `scripts/run-streaming-workflow.sh`.
+still be launched with `scripts/run/streaming-workflow.sh`.
 
 These stacks assume the shared network layer eventually provides the private
 service endpoints needed for ECS task startup and logging.

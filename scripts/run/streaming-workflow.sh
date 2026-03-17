@@ -4,7 +4,7 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  ./scripts/run-streaming-workflow.sh --workflow WORKFLOW [options]
+  ./scripts/run/streaming-workflow.sh --workflow WORKFLOW [options]
 
 Run one-off ECS tasks for a streaming workflow stack without enabling its
 scheduler resources.
@@ -29,8 +29,8 @@ EOF
 }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-STEP_RUNNER="${REPO_ROOT}/scripts/run-ecs-step.sh"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+STEP_RUNNER="${REPO_ROOT}/scripts/run/ecs-step.sh"
 
 ENVIRONMENT="dev"
 AWS_REGION="us-east-2"

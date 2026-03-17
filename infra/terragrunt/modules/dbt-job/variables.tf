@@ -16,11 +16,19 @@ variable "aws_region" {
   default = "us-east-2"
 }
 
-variable "processed_bucket_name" {
+variable "process_bucket_name" {
   type = string
 }
 
-variable "marts_bucket_name" {
+variable "surface_bucket_name" {
+  type = string
+}
+
+variable "process_s3_root" {
+  type = string
+}
+
+variable "surface_s3_root" {
   type = string
 }
 

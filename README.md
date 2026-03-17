@@ -45,7 +45,10 @@ demo runners:
 
 Those demos:
 - apply `core`
+- release shared runtime images
 - apply the requested workflow stack
+- release workflow-owned images
+- re-apply the workflow stack to pick up immutable image URIs
 - run a small sample load
 - wait for the workflow to finish
 - run an Athena sanity query and print the result
@@ -77,7 +80,6 @@ The intended data movement is:
 The shared core is expected to own:
 - ECS cluster
 - shared ECR repositories for platform runtimes
-- container-image builds that publish immutable runtime images from `containers/shared/`
 - Glue database
 - Athena workgroup
 - Athena results storage
@@ -151,20 +153,59 @@ external producer the platform would consume from in a real system.
 
 ## Usage
 
-Infrastructure is applied manually via Terragrunt.
-CI should stay focused on static analysis, formatting, and security checks unless
+Infrastructure is applied manually via Terragrunt. Image release is handled
+separately so container builds are no longer coupled to `terraform apply`.
+
+The preferred operator entrypoints are:
+
+```bash
+./scripts/rollout-workflow.sh --workflow sample-api-polling-01
+./scripts/rollout-workflow.sh --workflow sample-api-polling-01 --sample-run
+./scripts/teardown-workflow.sh --workflow sample-api-polling-01
+./scripts/teardown-workflow.sh --workflow sample-api-polling-01 --include-core
+```
+
+That gives the repo an "everything up / everything down" path without mixing
+Docker release into Terraform modules.
+
+Under the hood, the normal low-level flow is:
+
+```bash
+cd infra/terragrunt/live/dev/core
+terragrunt apply
+
+cd /home/aaron/repos/data-simulator-elt
+./scripts/release/core-images.sh --env dev
+
+cd infra/terragrunt/live/dev/sample-api-polling-01
+terragrunt apply
+
+cd /home/aaron/repos/data-simulator-elt
+./scripts/release/workflow-images.sh --env dev --workflow sample-api-polling-01
+
+cd infra/terragrunt/live/dev/sample-api-polling-01
+terragrunt apply
+```
+
+The release scripts write local manifests under `build/releases/<env>/`. The
+live Terragrunt stacks read those manifests so the same flow can be lifted into
+a GitHub Actions runner later without changing the Terraform modules.
+In practice, a runner only needs Docker, Terragrunt, and AWS credentials with
+ECR push plus the normal Terraform apply permissions.
+
+CI should stay focused on static analysis, formatting, and security checks until
 there is a deliberate reason to automate deploys.
 
 For one-off manual runs and quick backfills, use:
 
 ```bash
-./scripts/run-scheduled-workflow.sh --workflow sample-api-polling-01
+./scripts/run/scheduled-workflow.sh --workflow sample-api-polling-01
 ```
 
 or:
 
 ```bash
-./scripts/run-scheduled-workflow.sh \
+./scripts/run/scheduled-workflow.sh \
   --workflow sample-api-polling-01 \
   --step source-ingest \
   --planning-mode temporal \
@@ -177,7 +218,7 @@ or:
 To run the workflow-local dbt layer manually:
 
 ```bash
-./scripts/run-scheduled-workflow.sh \
+./scripts/run/scheduled-workflow.sh \
   --workflow sample-api-polling-01 \
   --step dbt \
   --wait
@@ -196,7 +237,7 @@ finishes.
 For the stream-oriented sample, use:
 
 ```bash
-./scripts/run-streaming-workflow.sh \
+./scripts/run/streaming-workflow.sh \
   --workflow sample-stream-events-01 \
   --step all \
   --emitter-runs 3 \
@@ -228,7 +269,10 @@ or:
 
 This helper will:
 - apply `core`
+- release shared runtime images
 - apply the requested workflow stack
+- release workflow-owned images
+- re-apply the workflow stack to pick up immutable image URIs
 - print the landing, processed, marts, and Athena output locations
 - run a small sample workload for that workflow
 - wait for the workflow to finish

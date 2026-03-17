@@ -4,6 +4,14 @@ locals {
   family_name          = "${local.project_slug}-${var.environment}-${local.workflow_token}-dbt"
   log_group_name       = "/ecs/${local.family_name}"
   athena_workgroup_arn = "arn:${data.aws_partition.current.partition}:athena:${var.aws_region}:${data.aws_caller_identity.current.account_id}:workgroup/${var.athena_workgroup_name}"
+  workflow_bucket_arns = distinct([
+    "arn:aws:s3:::${var.process_bucket_name}",
+    "arn:aws:s3:::${var.surface_bucket_name}",
+  ])
+  workflow_object_arns = distinct([
+    "arn:aws:s3:::${var.process_bucket_name}/*",
+    "arn:aws:s3:::${var.surface_bucket_name}/*",
+  ])
 }
 
 data "aws_caller_identity" "current" {}
@@ -49,12 +57,7 @@ data "aws_iam_policy_document" "task_policy" {
       "s3:DeleteObject",
     ]
 
-    resources = [
-      "arn:aws:s3:::${var.processed_bucket_name}",
-      "arn:aws:s3:::${var.processed_bucket_name}/*",
-      "arn:aws:s3:::${var.marts_bucket_name}",
-      "arn:aws:s3:::${var.marts_bucket_name}/*",
-    ]
+    resources = concat(local.workflow_bucket_arns, local.workflow_object_arns)
   }
 
   statement {
@@ -157,12 +160,20 @@ resource "aws_ecs_task_definition" "this" {
             value = var.workflow_name
           },
           {
-            name  = "PROCESSED_BUCKET_NAME"
-            value = var.processed_bucket_name
+            name  = "PROCESS_BUCKET_NAME"
+            value = var.process_bucket_name
           },
           {
-            name  = "MARTS_BUCKET_NAME"
-            value = var.marts_bucket_name
+            name  = "SURFACE_BUCKET_NAME"
+            value = var.surface_bucket_name
+          },
+          {
+            name  = "PROCESS_S3_ROOT"
+            value = var.process_s3_root
+          },
+          {
+            name  = "SURFACE_S3_ROOT"
+            value = var.surface_s3_root
           },
           {
             name  = "GLUE_DATABASE_NAME"

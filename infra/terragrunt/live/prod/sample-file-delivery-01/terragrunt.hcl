@@ -2,6 +2,13 @@ include "root" {
   path = find_in_parent_folders("root.hcl")
 }
 
+locals {
+  core_release_manifest_path     = "${get_repo_root()}/build/releases/prod/core.json"
+  core_release_manifest          = fileexists(local.core_release_manifest_path) ? jsondecode(file(local.core_release_manifest_path)) : {}
+  workflow_release_manifest_path = "${get_repo_root()}/build/releases/prod/sample-file-delivery-01.json"
+  workflow_release_manifest      = fileexists(local.workflow_release_manifest_path) ? jsondecode(file(local.workflow_release_manifest_path)) : {}
+}
+
 dependency "core" {
   config_path = "../core"
 
@@ -61,7 +68,7 @@ inputs = {
     preset_id = "batch_delivery_benchmark"
   })
   slice_granularity             = "day"
-  dbt_source_dir                = "${get_repo_root()}/containers/workflows/sample-file-delivery-01/dbt"
-  source_ingest_container_image = dependency.core.outputs.source_ingest_image_uri
-  standardize_container_image   = dependency.core.outputs.standardize_image_uri
+  dbt_container_image           = try(local.workflow_release_manifest.dbt_image_uri, null)
+  source_ingest_container_image = coalesce(try(local.core_release_manifest.source_ingest_image_uri, null), try(dependency.core.outputs.source_ingest_image_uri, null))
+  standardize_container_image   = coalesce(try(local.core_release_manifest.standardize_image_uri, null), try(dependency.core.outputs.standardize_image_uri, null))
 }

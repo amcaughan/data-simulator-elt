@@ -6,31 +6,59 @@ locals {
   source_schedule_name         = "${local.project_slug}-${var.environment}-${local.workflow_token}-si"
   standardize_schedule_name    = "${local.project_slug}-${var.environment}-${local.workflow_token}-std"
   dbt_schedule_name            = "${local.project_slug}-${var.environment}-${local.workflow_token}-dbt"
-  source_schedule_enabled      = var.ingest_schedule_expression != null
-  standardize_schedule_enabled = var.standardize_schedule_expression != null
-  dbt_schedule_enabled         = var.dbt_schedule_expression != null
+  source_ingest_enabled        = var.source_ingest_container_image != null
+  standardize_enabled          = var.standardize_container_image != null
+  dbt_enabled                  = var.dbt_container_image != null
+  source_schedule_enabled      = local.source_ingest_enabled && var.ingest_schedule_expression != null
+  standardize_schedule_enabled = local.standardize_enabled && var.standardize_schedule_expression != null
+  dbt_schedule_enabled         = local.dbt_enabled && var.dbt_schedule_expression != null
   any_schedule_enabled         = local.source_schedule_enabled || local.standardize_schedule_enabled || local.dbt_schedule_enabled
+  runnable_task_definition_arns = compact([
+    try(module.source_ingest[0].task_definition_arn, null),
+    try(module.standardize[0].task_definition_arn, null),
+    try(module.dbt[0].task_definition_arn, null),
+  ])
+  runnable_role_arns = compact([
+    try(module.source_ingest[0].task_role_arn, null),
+    try(module.source_ingest[0].execution_role_arn, null),
+    try(module.standardize[0].task_role_arn, null),
+    try(module.standardize[0].execution_role_arn, null),
+    try(module.dbt[0].task_role_arn, null),
+    try(module.dbt[0].execution_role_arn, null),
+  ])
+  ingest_storage_location  = module.storage.storage_locations["ingest"]
+  process_storage_location = module.storage.storage_locations["process"]
+  surface_storage_location = module.storage.storage_locations["surface"]
+  ingest_base_prefix_parts = compact([
+    local.ingest_storage_location.prefix,
+    trimspace(coalesce(var.landing_base_prefix, "")) == "" ? null : trim(var.landing_base_prefix, "/"),
+  ])
+  ingest_base_prefix = length(local.ingest_base_prefix_parts) == 0 ? null : join("/", local.ingest_base_prefix_parts)
+  process_base_prefix_parts = compact([
+    local.process_storage_location.prefix,
+    trimspace(coalesce(var.standardize_processed_base_prefix, "")) == "" ? null : trim(var.standardize_processed_base_prefix, "/"),
+  ])
+  process_base_prefix = length(local.process_base_prefix_parts) == 0 ? null : join("/", local.process_base_prefix_parts)
 }
 
 module "storage" {
   source = "../isolated-storage"
 
-  environment           = var.environment
-  project_name          = var.project_name
-  workflow_name         = var.workflow_name
-  landing_bucket_name   = var.landing_bucket_name
-  processed_bucket_name = var.processed_bucket_name
-  marts_bucket_name     = var.marts_bucket_name
+  environment       = var.environment
+  project_name      = var.project_name
+  workflow_name     = var.workflow_name
+  storage_locations = var.storage_locations
 }
 
 module "source_ingest" {
+  count  = local.source_ingest_enabled ? 1 : 0
   source = "../source-ingest-job"
 
   environment                    = var.environment
   project_name                   = var.project_name
   workflow_name                  = var.workflow_name
-  landing_bucket_name            = module.storage.landing_bucket_name
-  landing_base_prefix            = var.landing_base_prefix
+  landing_bucket_name            = local.ingest_storage_location.bucket_name
+  landing_base_prefix            = local.ingest_base_prefix
   landing_partition_fields_json  = var.landing_partition_fields_json
   landing_path_suffix_json       = var.landing_path_suffix_json
   source_base_url_ssm_param_name = var.source_base_url_ssm_param_name
@@ -51,14 +79,15 @@ module "source_ingest" {
 }
 
 module "standardize" {
+  count  = local.standardize_enabled ? 1 : 0
   source = "../standardize-job"
 
   environment                      = var.environment
   project_name                     = var.project_name
   workflow_name                    = var.workflow_name
-  landing_bucket_name              = module.storage.landing_bucket_name
-  processed_bucket_name            = module.storage.processed_bucket_name
-  landing_base_prefix              = var.landing_base_prefix
+  landing_bucket_name              = local.ingest_storage_location.bucket_name
+  processed_bucket_name            = local.process_storage_location.bucket_name
+  landing_base_prefix              = local.ingest_base_prefix
   landing_partition_fields_json    = var.landing_partition_fields_json
   landing_path_suffix_json         = var.landing_path_suffix_json
   standardize_strategy             = var.standardize_strategy
@@ -66,7 +95,7 @@ module "standardize" {
   aws_region                       = var.aws_region
   landing_slice_granularity        = var.slice_granularity
   output_slice_granularity         = var.standardize_output_slice_granularity
-  processed_base_prefix            = var.standardize_processed_base_prefix
+  processed_base_prefix            = local.process_base_prefix
   processed_partition_fields_json  = var.standardize_processed_partition_fields_json
   processed_path_suffix_json       = var.standardize_processed_path_suffix_json
   slice_selector_mode              = var.standardize_slice_selector_mode
@@ -124,27 +153,21 @@ resource "aws_ecr_lifecycle_policy" "dbt" {
   })
 }
 
-module "dbt_image" {
-  source = "../container-image"
-
-  aws_region         = var.aws_region
-  repository_url     = aws_ecr_repository.dbt.repository_url
-  runtime_source_dir = var.dbt_source_dir
-  build_context_dir  = var.dbt_source_dir
-}
-
 module "dbt" {
+  count  = local.dbt_enabled ? 1 : 0
   source = "../dbt-job"
 
   environment                = var.environment
   project_name               = var.project_name
   workflow_name              = var.workflow_name
-  processed_bucket_name      = module.storage.processed_bucket_name
-  marts_bucket_name          = module.storage.marts_bucket_name
+  process_bucket_name        = local.process_storage_location.bucket_name
+  surface_bucket_name        = local.surface_storage_location.bucket_name
+  process_s3_root            = local.process_storage_location.s3_root
+  surface_s3_root            = local.surface_storage_location.s3_root
   glue_database_name         = var.glue_database_name
   athena_workgroup_name      = var.athena_workgroup_name
   athena_results_bucket_name = var.athena_results_bucket_name
-  container_image            = module.dbt_image.image_uri
+  container_image            = var.dbt_container_image
 }
 
 data "aws_iam_policy_document" "scheduler_assume_role" {
@@ -178,11 +201,7 @@ data "aws_iam_policy_document" "scheduler" {
 
     actions = ["ecs:RunTask"]
 
-    resources = [
-      module.source_ingest.task_definition_arn,
-      module.standardize.task_definition_arn,
-      module.dbt.task_definition_arn,
-    ]
+    resources = local.runnable_task_definition_arns
 
     condition {
       test     = "ArnEquals"
@@ -197,14 +216,7 @@ data "aws_iam_policy_document" "scheduler" {
 
     actions = ["iam:PassRole"]
 
-    resources = [
-      module.source_ingest.task_role_arn,
-      module.source_ingest.execution_role_arn,
-      module.standardize.task_role_arn,
-      module.standardize.execution_role_arn,
-      module.dbt.task_role_arn,
-      module.dbt.execution_role_arn,
-    ]
+    resources = local.runnable_role_arns
   }
 }
 
@@ -232,7 +244,7 @@ resource "aws_scheduler_schedule" "source_ingest" {
     role_arn = aws_iam_role.scheduler[0].arn
 
     ecs_parameters {
-      task_definition_arn = module.source_ingest.task_definition_arn
+      task_definition_arn = module.source_ingest[0].task_definition_arn
       launch_type         = "FARGATE"
       task_count          = 1
       platform_version    = "LATEST"
@@ -262,7 +274,7 @@ resource "aws_scheduler_schedule" "standardize" {
     role_arn = aws_iam_role.scheduler[0].arn
 
     ecs_parameters {
-      task_definition_arn = module.standardize.task_definition_arn
+      task_definition_arn = module.standardize[0].task_definition_arn
       launch_type         = "FARGATE"
       task_count          = 1
       platform_version    = "LATEST"
@@ -292,7 +304,7 @@ resource "aws_scheduler_schedule" "dbt" {
     role_arn = aws_iam_role.scheduler[0].arn
 
     ecs_parameters {
-      task_definition_arn = module.dbt.task_definition_arn
+      task_definition_arn = module.dbt[0].task_definition_arn
       launch_type         = "FARGATE"
       task_count          = 1
       platform_version    = "LATEST"

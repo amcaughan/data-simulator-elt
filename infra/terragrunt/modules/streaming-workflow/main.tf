@@ -9,18 +9,34 @@ locals {
   scheduler_name           = "${local.project_slug}-${var.environment}-${local.workflow_token}-sch"
   stream_schedule_name     = "${local.project_slug}-${var.environment}-${local.workflow_token}-sem"
   dbt_schedule_name        = "${local.project_slug}-${var.environment}-${local.workflow_token}-dbt"
-  scheduler_enabled        = var.stream_schedule_expression != null || var.dbt_schedule_expression != null
+  stream_emitter_enabled   = var.stream_emitter_container_image != null
+  dbt_enabled              = var.dbt_container_image != null
+  stream_schedule_enabled  = local.stream_emitter_enabled && var.stream_schedule_expression != null
+  dbt_schedule_enabled     = local.dbt_enabled && var.dbt_schedule_expression != null
+  scheduler_enabled        = local.stream_schedule_enabled || local.dbt_schedule_enabled
+  runnable_task_definition_arns = compact([
+    try(module.stream_emitter[0].task_definition_arn, null),
+    try(module.dbt[0].task_definition_arn, null),
+  ])
+  runnable_role_arns = compact([
+    try(module.stream_emitter[0].task_role_arn, null),
+    try(module.stream_emitter[0].execution_role_arn, null),
+    try(module.dbt[0].task_role_arn, null),
+    try(module.dbt[0].execution_role_arn, null),
+  ])
+  process_storage_location = module.storage.storage_locations["process"]
+  surface_storage_location = module.storage.storage_locations["surface"]
+  firehose_events_prefix   = "${join("/", compact([local.process_storage_location.prefix, "events"]))}/year=!{timestamp:yyyy}/month=!{timestamp:MM}/day=!{timestamp:dd}/"
+  firehose_errors_prefix   = "${join("/", compact([local.process_storage_location.prefix, "errors"]))}/type=!{firehose:error-output-type}/year=!{timestamp:yyyy}/month=!{timestamp:MM}/day=!{timestamp:dd}/"
 }
 
 module "storage" {
   source = "../isolated-storage"
 
-  environment           = var.environment
-  project_name          = var.project_name
-  workflow_name         = var.workflow_name
-  landing_bucket_name   = var.landing_bucket_name
-  processed_bucket_name = var.processed_bucket_name
-  marts_bucket_name     = var.marts_bucket_name
+  environment       = var.environment
+  project_name      = var.project_name
+  workflow_name     = var.workflow_name
+  storage_locations = var.storage_locations
 }
 
 resource "aws_ecr_repository" "stream_emitter" {
@@ -64,15 +80,6 @@ resource "aws_ecr_lifecycle_policy" "stream_emitter" {
       },
     ]
   })
-}
-
-module "stream_emitter_image" {
-  source = "../container-image"
-
-  aws_region         = var.aws_region
-  repository_url     = aws_ecr_repository.stream_emitter.repository_url
-  runtime_source_dir = var.stream_emitter_source_dir
-  build_context_dir  = var.stream_emitter_source_dir
 }
 
 resource "aws_kinesis_stream" "this" {
@@ -144,8 +151,8 @@ data "aws_iam_policy_document" "firehose" {
     ]
 
     resources = [
-      "arn:aws:s3:::${module.storage.processed_bucket_name}",
-      "arn:aws:s3:::${module.storage.processed_bucket_name}/*",
+      "arn:aws:s3:::${local.process_storage_location.bucket_name}",
+      "arn:aws:s3:::${local.process_storage_location.bucket_name}/*",
     ]
   }
 
@@ -176,9 +183,9 @@ resource "aws_kinesis_firehose_delivery_stream" "this" {
 
   extended_s3_configuration {
     role_arn            = aws_iam_role.firehose.arn
-    bucket_arn          = "arn:aws:s3:::${module.storage.processed_bucket_name}"
-    prefix              = "events/year=!{timestamp:yyyy}/month=!{timestamp:MM}/day=!{timestamp:dd}/"
-    error_output_prefix = "errors/type=!{firehose:error-output-type}/year=!{timestamp:yyyy}/month=!{timestamp:MM}/day=!{timestamp:dd}/"
+    bucket_arn          = "arn:aws:s3:::${local.process_storage_location.bucket_name}"
+    prefix              = local.firehose_events_prefix
+    error_output_prefix = local.firehose_errors_prefix
     buffering_interval  = 60
     buffering_size      = 64
     compression_format  = "GZIP"
@@ -192,6 +199,7 @@ resource "aws_kinesis_firehose_delivery_stream" "this" {
 }
 
 module "stream_emitter" {
+  count  = local.stream_emitter_enabled ? 1 : 0
   source = "../stream-emitter-job"
 
   environment                      = var.environment
@@ -202,7 +210,7 @@ module "stream_emitter" {
   emission_rate_per_minute         = var.emission_rate_per_minute
   stream_name                      = aws_kinesis_stream.this.name
   stream_arn                       = aws_kinesis_stream.this.arn
-  container_image                  = module.stream_emitter_image.image_uri
+  container_image                  = var.stream_emitter_container_image
 }
 
 resource "aws_ecr_repository" "dbt" {
@@ -248,27 +256,21 @@ resource "aws_ecr_lifecycle_policy" "dbt" {
   })
 }
 
-module "dbt_image" {
-  source = "../container-image"
-
-  aws_region         = var.aws_region
-  repository_url     = aws_ecr_repository.dbt.repository_url
-  runtime_source_dir = var.dbt_source_dir
-  build_context_dir  = var.dbt_source_dir
-}
-
 module "dbt" {
+  count  = local.dbt_enabled ? 1 : 0
   source = "../dbt-job"
 
   environment                = var.environment
   project_name               = var.project_name
   workflow_name              = var.workflow_name
-  processed_bucket_name      = module.storage.processed_bucket_name
-  marts_bucket_name          = module.storage.marts_bucket_name
+  process_bucket_name        = local.process_storage_location.bucket_name
+  surface_bucket_name        = local.surface_storage_location.bucket_name
+  process_s3_root            = local.process_storage_location.s3_root
+  surface_s3_root            = local.surface_storage_location.s3_root
   glue_database_name         = var.glue_database_name
   athena_workgroup_name      = var.athena_workgroup_name
   athena_results_bucket_name = var.athena_results_bucket_name
-  container_image            = module.dbt_image.image_uri
+  container_image            = var.dbt_container_image
 }
 
 data "aws_iam_policy_document" "scheduler_assume_role" {
@@ -298,10 +300,7 @@ data "aws_iam_policy_document" "scheduler" {
 
     actions = ["ecs:RunTask"]
 
-    resources = [
-      module.stream_emitter.task_definition_arn,
-      module.dbt.task_definition_arn,
-    ]
+    resources = local.runnable_task_definition_arns
 
     condition {
       test     = "ArnEquals"
@@ -316,12 +315,7 @@ data "aws_iam_policy_document" "scheduler" {
 
     actions = ["iam:PassRole"]
 
-    resources = [
-      module.stream_emitter.task_role_arn,
-      module.stream_emitter.execution_role_arn,
-      module.dbt.task_role_arn,
-      module.dbt.execution_role_arn,
-    ]
+    resources = local.runnable_role_arns
   }
 }
 
@@ -334,7 +328,7 @@ resource "aws_iam_role_policy" "scheduler" {
 }
 
 resource "aws_scheduler_schedule" "stream_emitter" {
-  count = var.stream_schedule_expression == null ? 0 : 1
+  count = local.stream_schedule_enabled ? 1 : 0
 
   name                = local.stream_schedule_name
   schedule_expression = var.stream_schedule_expression
@@ -349,7 +343,7 @@ resource "aws_scheduler_schedule" "stream_emitter" {
     role_arn = aws_iam_role.scheduler[0].arn
 
     ecs_parameters {
-      task_definition_arn = module.stream_emitter.task_definition_arn
+      task_definition_arn = module.stream_emitter[0].task_definition_arn
       launch_type         = "FARGATE"
       task_count          = 1
       platform_version    = "LATEST"
@@ -364,7 +358,7 @@ resource "aws_scheduler_schedule" "stream_emitter" {
 }
 
 resource "aws_scheduler_schedule" "dbt" {
-  count = var.dbt_schedule_expression == null ? 0 : 1
+  count = local.dbt_schedule_enabled ? 1 : 0
 
   name                = local.dbt_schedule_name
   schedule_expression = var.dbt_schedule_expression
@@ -379,7 +373,7 @@ resource "aws_scheduler_schedule" "dbt" {
     role_arn = aws_iam_role.scheduler[0].arn
 
     ecs_parameters {
-      task_definition_arn = module.dbt.task_definition_arn
+      task_definition_arn = module.dbt[0].task_definition_arn
       launch_type         = "FARGATE"
       task_count          = 1
       platform_version    = "LATEST"

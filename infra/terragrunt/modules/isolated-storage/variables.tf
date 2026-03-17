@@ -11,19 +11,11 @@ variable "workflow_name" {
   type = string
 }
 
-variable "landing_bucket_name" {
-  type    = string
-  default = null
-}
-
-variable "processed_bucket_name" {
-  type    = string
-  default = null
-}
-
-variable "marts_bucket_name" {
-  type    = string
-  default = null
+variable "storage_locations" {
+  type = map(object({
+    bucket_name = optional(string)
+    prefix      = optional(string)
+  }))
 }
 
 variable "force_destroy_buckets" {

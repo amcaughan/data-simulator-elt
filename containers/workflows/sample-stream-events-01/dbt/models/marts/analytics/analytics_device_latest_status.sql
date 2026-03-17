@@ -1,4 +1,7 @@
-{{ config(location=marts_table_location('analytics', 'analytics_device_latest_status')) }}
+{{ config(
+  partitioned_by=["event_date"],
+  external_location=marts_table_location("analytics", "analytics_device_latest_status")
+) }}
 
 with ranked as (
   select

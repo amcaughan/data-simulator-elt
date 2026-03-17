@@ -5,8 +5,6 @@ Terraform modules local to this repository live here.
 The current split is:
 - `elt-core`
   shared control-plane resources for one environment
-- `container-image`
-  local Docker build-and-push helper for runtime images sourced from `containers/`
 - `isolated-storage`
   per-workflow landing, processed, and marts storage
 - `source-ingest-job`
@@ -24,5 +22,14 @@ The current split is:
 
 The intended split is:
 - job modules define reusable runtime and IAM patterns
-- workflow modules compose storage, runtime modules, workflow-local dbt image publishing, and orchestration
+- workflow modules compose storage, runtime modules, workflow-local ECR
+  repositories, and orchestration
 - live stacks instantiate concrete example workloads
+
+Image publishing now happens outside Terraform through:
+- `scripts/release/core-images.sh`
+- `scripts/release/workflow-images.sh`
+
+Those scripts write local release manifests under `build/releases/<env>/`, and
+the live Terragrunt stacks read those manifests when wiring task definitions to
+immutable image URIs.

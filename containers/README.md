@@ -2,9 +2,9 @@
 
 All image build inputs live here.
 
-This directory is the packaging entrypoint for the repository. The generic
-`container-image` Terraform module builds and publishes images from these
-source trees into ECR.
+This directory is the packaging entrypoint for the repository. The release
+scripts build and publish immutable images from these source trees into the ECR
+repositories created by Terragrunt.
 
 The split is:
 - `shared/`

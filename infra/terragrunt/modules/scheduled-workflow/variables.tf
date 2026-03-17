@@ -16,19 +16,17 @@ variable "workflow_name" {
   type = string
 }
 
-variable "landing_bucket_name" {
-  type    = string
-  default = null
-}
+variable "storage_locations" {
+  type = map(object({
+    bucket_name = optional(string)
+    prefix      = optional(string)
+  }))
 
-variable "processed_bucket_name" {
-  type    = string
-  default = null
-}
-
-variable "marts_bucket_name" {
-  type    = string
-  default = null
+  default = {
+    ingest  = {}
+    process = {}
+    surface = {}
+  }
 }
 
 variable "ecs_cluster_arn" {
@@ -72,10 +70,6 @@ variable "standardize_schedule_expression" {
 variable "dbt_schedule_expression" {
   type    = string
   default = null
-}
-
-variable "dbt_source_dir" {
-  type = string
 }
 
 variable "source_adapter" {
@@ -166,6 +160,11 @@ variable "source_ingest_container_image" {
 
 variable "standardize_container_image" {
   type = string
+}
+
+variable "dbt_container_image" {
+  type    = string
+  default = null
 }
 
 variable "standardize_slice_selector_mode" {

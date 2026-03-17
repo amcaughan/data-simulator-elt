@@ -2,6 +2,14 @@ include "root" {
   path = find_in_parent_folders("root.hcl")
 }
 
+locals {
+  core_release_manifest_path     = "${get_repo_root()}/build/releases/dev/core.json"
+  core_release_manifest          = fileexists(local.core_release_manifest_path) ? jsondecode(file(local.core_release_manifest_path)) : {}
+  workflow_release_manifest_path = "${get_repo_root()}/build/releases/dev/sample-api-polling-01.json"
+  workflow_release_manifest      = fileexists(local.workflow_release_manifest_path) ? jsondecode(file(local.workflow_release_manifest_path)) : {}
+  storage_bucket_name            = "elt-api-polling-dev-demo-${get_aws_account_id()}-us-east-2"
+}
+
 dependency "core" {
   config_path = "../core"
 
@@ -31,10 +39,24 @@ inputs = {
     auto_cleanup     = "true"
     cleanup_schedule = "weekly"
     # Intentional here: the janitor treats apply time as "last touched" time.
-    created_on = run_cmd("date", "-u", "+%Y-%m-%d")
+    created_on = run_cmd("--terragrunt-quiet", "date", "-u", "+%Y-%m-%d")
   }
-  project_name                    = "data-simulator-elt"
-  workflow_name                   = "sample-api-polling-01"
+  project_name  = "data-simulator-elt"
+  workflow_name = "sample-api-polling-01"
+  storage_locations = {
+    ingest = {
+      bucket_name = local.storage_bucket_name
+      prefix      = "ingest"
+    }
+    process = {
+      bucket_name = local.storage_bucket_name
+      prefix      = "process"
+    }
+    surface = {
+      bucket_name = local.storage_bucket_name
+      prefix      = "surface"
+    }
+  }
   ecs_cluster_arn                 = dependency.core.outputs.ecs_cluster_arn
   network_private_subnet_ids      = dependency.core.outputs.network_private_subnet_ids
   network_security_group_id       = dependency.core.outputs.network_security_group_id
@@ -57,7 +79,7 @@ inputs = {
     preset_id = "transaction_benchmark"
   })
   slice_granularity             = "hour"
-  dbt_source_dir                = "${get_repo_root()}/containers/workflows/sample-api-polling-01/dbt"
-  source_ingest_container_image = dependency.core.outputs.source_ingest_image_uri
-  standardize_container_image   = dependency.core.outputs.standardize_image_uri
+  dbt_container_image           = try(local.workflow_release_manifest.dbt_image_uri, null)
+  source_ingest_container_image = coalesce(try(local.core_release_manifest.source_ingest_image_uri, null), try(dependency.core.outputs.source_ingest_image_uri, null))
+  standardize_container_image   = coalesce(try(local.core_release_manifest.standardize_image_uri, null), try(dependency.core.outputs.standardize_image_uri, null))
 }

@@ -169,32 +169,6 @@ resource "aws_ecr_lifecycle_policy" "this" {
   })
 }
 
-module "source_ingest_image" {
-  count  = var.publish_runtime_images ? 1 : 0
-  source = "../container-image"
-
-  aws_region         = data.aws_region.current.region
-  repository_url     = aws_ecr_repository.this["source_ingest"].repository_url
-  runtime_source_dir = var.source_ingest_container_source_dir
-  build_context_dir  = var.shared_containers_build_context_dir
-  extra_hash_dirs = [
-    var.shared_common_container_source_dir,
-  ]
-}
-
-module "standardize_image" {
-  count  = var.publish_runtime_images ? 1 : 0
-  source = "../container-image"
-
-  aws_region         = data.aws_region.current.region
-  repository_url     = aws_ecr_repository.this["standardize"].repository_url
-  runtime_source_dir = var.standardize_container_source_dir
-  build_context_dir  = var.shared_containers_build_context_dir
-  extra_hash_dirs = [
-    var.shared_common_container_source_dir,
-  ]
-}
-
 resource "aws_ssm_parameter" "ecs_cluster_name" {
   count = var.publish_ssm_parameters ? 1 : 0
 

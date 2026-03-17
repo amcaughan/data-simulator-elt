@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: scripts/fmt-infra.sh [--check]
+Usage: local/fmt-infra.sh [--check]
 
 Format or check Terraform and Terragrunt files for this repo.
 

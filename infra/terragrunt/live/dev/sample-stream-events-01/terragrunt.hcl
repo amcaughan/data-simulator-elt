@@ -2,6 +2,12 @@ include "root" {
   path = find_in_parent_folders("root.hcl")
 }
 
+locals {
+  workflow_release_manifest_path = "${get_repo_root()}/build/releases/dev/sample-stream-events-01.json"
+  workflow_release_manifest      = fileexists(local.workflow_release_manifest_path) ? jsondecode(file(local.workflow_release_manifest_path)) : {}
+  storage_bucket_name            = "elt-stream-events-dev-demo-${get_aws_account_id()}-us-east-2"
+}
+
 dependency "core" {
   config_path = "../core"
 
@@ -29,10 +35,20 @@ inputs = {
     auto_cleanup     = "true"
     cleanup_schedule = "weekly"
     # Intentional here: the janitor treats apply time as "last touched" time.
-    created_on = run_cmd("date", "-u", "+%Y-%m-%d")
+    created_on = run_cmd("--terragrunt-quiet", "date", "-u", "+%Y-%m-%d")
   }
-  project_name                     = "data-simulator-elt"
-  workflow_name                    = "sample-stream-events-01"
+  project_name  = "data-simulator-elt"
+  workflow_name = "sample-stream-events-01"
+  storage_locations = {
+    process = {
+      bucket_name = local.storage_bucket_name
+      prefix      = "process"
+    }
+    surface = {
+      bucket_name = local.storage_bucket_name
+      prefix      = "surface"
+    }
+  }
   ecs_cluster_arn                  = dependency.core.outputs.ecs_cluster_arn
   network_private_subnet_ids       = dependency.core.outputs.network_private_subnet_ids
   network_security_group_id        = dependency.core.outputs.network_security_group_id
@@ -43,8 +59,8 @@ inputs = {
   preset_id                        = "iot_sensor_benchmark"
   emission_rate_per_minute         = 60
   # Keep the demo stream quiet until we intentionally run it by hand.
-  stream_schedule_expression = null
-  dbt_schedule_expression    = null
-  dbt_source_dir             = "${get_repo_root()}/containers/workflows/sample-stream-events-01/dbt"
-  stream_emitter_source_dir  = "${get_repo_root()}/containers/workflows/sample-stream-events-01/stream_emitter"
+  stream_schedule_expression     = null
+  dbt_schedule_expression        = null
+  dbt_container_image            = try(local.workflow_release_manifest.dbt_image_uri, null)
+  stream_emitter_container_image = try(local.workflow_release_manifest.stream_emitter_image_uri, null)
 }
