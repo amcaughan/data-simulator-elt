@@ -14,7 +14,7 @@ locals {
 
   default_bucket_names = {
     for location_name in keys(local.requested_storage_locations) :
-    location_name => "${local.bucket_prefix}-${location_name}-${data.aws_caller_identity.current.account_id}-${data.aws_region.current.region}"
+    location_name => "${local.bucket_prefix}-${location_name}-${data.aws_caller_identity.current.account_id}-${data.aws_region.current.name}"
   }
 
   resolved_storage_locations = {
