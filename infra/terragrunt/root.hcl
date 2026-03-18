@@ -14,7 +14,7 @@ remote_state {
 
   config = {
     bucket       = "amcaughan-tf-state-us-east-2"
-    key          = "${path_relative_to_include()}/terraform.tfstate"
+    key          = "data-simulator-elt/${path_relative_to_include()}/terraform.tfstate"
     region       = local.aws_region
     encrypt      = true
     use_lockfile = true
