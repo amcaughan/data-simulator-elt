@@ -94,7 +94,6 @@ def build_manual_processed_key(
         return object_name
     return join_storage_path(
         base_prefix=output_prefix,
-        partition_components=(),
         object_name=object_name,
     )
 
