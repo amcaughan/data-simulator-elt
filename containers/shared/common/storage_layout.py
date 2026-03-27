@@ -154,7 +154,7 @@ def build_partition_components(
 
 def join_storage_path(
     base_prefix: str | None,
-    partition_components: tuple[PartitionComponent, ...],
+    partition_components: tuple[PartitionComponent, ...] = (),
     path_suffix: tuple[str, ...] = (),
     object_name: str | None = None,
 ) -> str:

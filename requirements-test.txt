@@ -1,0 +1,3 @@
+-r containers/shared/source_ingest/requirements.txt
+-r containers/shared/standardize/requirements.txt
+-r containers/workflows/sample-stream-events-01/stream_emitter/requirements.txt

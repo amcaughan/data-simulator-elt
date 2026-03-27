@@ -1,0 +1,49 @@
+name: terragrunt-plan
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
+
+jobs:
+  terragrunt-plan:
+    if: ${{ vars.AWS_CI_PLAN_ROLE_ARN != '' }}
+    uses: amcaughan/shared_workflows/.github/workflows/terragrunt-plan.yml@acm/feature/CI-workflows
+    with:
+      terragrunt_working_dir: infra/terragrunt
+      stack_paths: |
+        live/dev/core
+        live/dev/sample-api-polling-01
+        live/dev/sample-file-delivery-01
+        live/dev/sample-stream-events-01
+        live/prod/core
+        live/prod/sample-api-polling-01
+        live/prod/sample-file-delivery-01
+        live/prod/sample-stream-events-01
+      report_title: "ELT Terragrunt plan report"
+      report_artifact_name: "terragrunt-plan-report"
+      terragrunt_plan_args: "-lock-timeout=5m"
+      aws_role_to_assume: ${{ vars.AWS_CI_PLAN_ROLE_ARN }}
+      aws_region: "us-east-2"
+      post_pr_comment: ${{ github.event_name == 'pull_request' }}
+      comment_name: "terragrunt-plan-report"
+
+  terragrunt-plan-not-configured:
+    if: ${{ vars.AWS_CI_PLAN_ROLE_ARN == '' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Explain skipped plan
+        shell: bash
+        run: |
+          {
+            echo "## Terragrunt plan skipped"
+            echo ""
+            echo "Set the \`AWS_CI_PLAN_ROLE_ARN\` repository variable to enable GitHub OIDC-based plan runs."
+            echo "Until then, the workflow remains a no-op so PR checks stay green."
+          } >> "$GITHUB_STEP_SUMMARY"

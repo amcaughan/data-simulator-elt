@@ -1,6 +1,11 @@
 locals {
   aws_region  = "us-east-2"
-  aws_profile = "default"
+  aws_profile = trimspace(get_env("AWS_PROFILE", "default"))
+  use_aws_profile = (
+    local.aws_profile != "" &&
+    trimspace(get_env("AWS_ACCESS_KEY_ID", "")) == "" &&
+    trimspace(get_env("AWS_WEB_IDENTITY_TOKEN_FILE", "")) == ""
+  )
 
   common_tags = {
     Project   = "data-simulator-elt"
@@ -14,7 +19,7 @@ remote_state {
 
   config = {
     bucket       = "amcaughan-tf-state-us-east-2"
-    key          = "${path_relative_to_include()}/terraform.tfstate"
+    key          = "data-simulator-elt/${path_relative_to_include()}/terraform.tfstate"
     region       = local.aws_region
     encrypt      = true
     use_lockfile = true
@@ -33,7 +38,7 @@ variable "extra_default_tags" {
 
 provider "aws" {
   region  = "${local.aws_region}"
-  profile = "${local.aws_profile}"
+${local.use_aws_profile ? "  profile = \"${local.aws_profile}\"" : ""}
 
   default_tags {
     tags = merge(${jsonencode(local.common_tags)}, var.extra_default_tags)
