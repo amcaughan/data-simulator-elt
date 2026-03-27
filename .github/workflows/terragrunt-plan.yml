@@ -13,7 +13,7 @@ permissions:
 jobs:
   terragrunt-plan:
     if: ${{ vars.AWS_CI_PLAN_ROLE_ARN != '' }}
-    uses: amcaughan/shared_workflows/.github/workflows/terragrunt-plan.yml@acm/feature/CI-workflows
+    uses: amcaughan-personal/shared_workflows/.github/workflows/terragrunt-plan.yml@0e1461414671b23dec4b80aedc0c2d29e60d3bca
     with:
       terragrunt_working_dir: infra/terragrunt
       stack_paths: |

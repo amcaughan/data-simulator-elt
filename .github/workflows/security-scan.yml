@@ -19,14 +19,14 @@ env:
 
 jobs:
   checkov:
-    uses: amcaughan/shared_workflows/.github/workflows/scan-checkov.yml@b0424313bd0560290eee28449fd21cd4812838f1
+    uses: amcaughan-personal/shared_workflows/.github/workflows/scan-checkov.yml@b0424313bd0560290eee28449fd21cd4812838f1
     with:
       artifact_name: sarif-checkov
       sarif_filename: checkov.sarif
       scan_path: .
 
   trivy:
-    uses: amcaughan/shared_workflows/.github/workflows/scan-trivy.yml@b0424313bd0560290eee28449fd21cd4812838f1
+    uses: amcaughan-personal/shared_workflows/.github/workflows/scan-trivy.yml@b0424313bd0560290eee28449fd21cd4812838f1
     with:
       artifact_name: sarif-trivy
       sarif_filename: trivy.sarif
@@ -34,7 +34,7 @@ jobs:
       scanners: vuln,license
 
   gitleaks:
-    uses: amcaughan/shared_workflows/.github/workflows/scan-gitleaks.yml@b0424313bd0560290eee28449fd21cd4812838f1
+    uses: amcaughan-personal/shared_workflows/.github/workflows/scan-gitleaks.yml@b0424313bd0560290eee28449fd21cd4812838f1
     with:
       artifact_name: sarif-gitleaks
       sarif_filename: gitleaks.sarif
@@ -42,7 +42,7 @@ jobs:
       scan_history: ${{ github.event_name == 'pull_request' || inputs.deep_gitleaks }}
 
   actionlint:
-    uses: amcaughan/shared_workflows/.github/workflows/scan-actionlint.yml@b0424313bd0560290eee28449fd21cd4812838f1
+    uses: amcaughan-personal/shared_workflows/.github/workflows/scan-actionlint.yml@b0424313bd0560290eee28449fd21cd4812838f1
     with:
       artifact_name: sarif-actionlint
       sarif_filename: actionlint.sarif
@@ -62,7 +62,7 @@ jobs:
         with:
           path: sarif
 
-      - uses: amcaughan/shared_workflows/.github/actions/sarif-report@b0424313bd0560290eee28449fd21cd4812838f1
+      - uses: amcaughan-personal/shared_workflows/.github/actions/sarif-report@b0424313bd0560290eee28449fd21cd4812838f1
         with:
           title: "Repo security report"
           sarif_glob: "sarif/**/**/*.sarif"
@@ -101,7 +101,7 @@ jobs:
 
       - name: Comment report on PR (upsert)
         if: ${{ github.event_name == 'pull_request' }}
-        uses: amcaughan/shared_workflows/.github/actions/comment-pr@b0424313bd0560290eee28449fd21cd4812838f1
+        uses: amcaughan-personal/shared_workflows/.github/actions/comment-pr@b0424313bd0560290eee28449fd21cd4812838f1
         with:
           comment_name: security-report
           body_file: out/pr-comment.md
