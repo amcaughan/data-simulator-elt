@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: scripts/local/fmt-infra.sh [--check]
+Usage: scripts/fmt-infra.sh [--check]
 
 Format or check Terraform and Terragrunt files for this repo.
 
@@ -12,7 +12,7 @@ Options:
 EOF
 }
 
-repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 terragrunt_dir="${repo_root}/infra/terragrunt"
 terraform_modules_dir="${terragrunt_dir}/modules"
 
