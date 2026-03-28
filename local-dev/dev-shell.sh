@@ -3,9 +3,9 @@ set -euo pipefail
 
 IMAGE_NAME="data-simulator-elt-dev"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-DOCKERFILE="$REPO_ROOT/local/docker/Dockerfile"
-BUILD_CONTEXT="$REPO_ROOT/local/docker"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+DOCKERFILE="$REPO_ROOT/local-dev/docker/Dockerfile"
+BUILD_CONTEXT="$REPO_ROOT/local-dev/docker"
 
 usage() {
   cat <<EOF
